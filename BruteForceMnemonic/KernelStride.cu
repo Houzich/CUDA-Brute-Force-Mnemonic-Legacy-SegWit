@@ -172,7 +172,7 @@ int stride_class::end_for_save()
 		fprintf(stderr, "cudaMemcpy mnemonic failed!");
 		return -1;
 	}
-	cudaStatus = cudaMemcpy(dt->host.hash160, dt->dev.hash160, dt->size_hash160_bip44_buf, cudaMemcpyDeviceToHost);
+	cudaStatus = cudaMemcpy(dt->host.hash160, dt->dev.hash160, dt->size_hash160_buf, cudaMemcpyDeviceToHost);
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMemcpy hash160 failed!");
 		return -1;

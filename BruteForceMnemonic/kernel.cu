@@ -21,7 +21,7 @@
 int main()
 {
     
-    Generate_Mnemonic_And_Hash();
+    Generate_Mnemonic();
 
 
     while (1) {

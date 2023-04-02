@@ -38,7 +38,7 @@ namespace tools {
 	}
 
 
-	void Generate_Random_LongWords_Byffer(uint64_t* buff, size_t len) {
+	void generateRandomUint64Buffer(uint64_t* buff, size_t len) {
 		uint64_t seed_random = getSeedForRandom();
 
 		std::uniform_int_distribution<uint64_t> distr;
@@ -51,7 +51,7 @@ namespace tools {
 
 	}
 
-	int push_to_memory(uint8_t* addr_buff, std::vector<std::string>& lines, int max_len) {
+	int pushToMemory(uint8_t* addr_buff, std::vector<std::string>& lines, int max_len) {
 		int err = 0;
 		for (int x = 0; x < lines.size(); x++) {
 			const std::string line = lines[x];
@@ -64,7 +64,7 @@ namespace tools {
 		return err;
 	}
 
-	int get_all_tables(tableStruct* tables, std::string path, std::string prefix)
+	int readAllTables(tableStruct* tables, std::string path, std::string prefix)
 	{
 		int ret = 0;
 		std::string num_tables;
@@ -74,7 +74,7 @@ namespace tools {
 
 			std::string table_name = byteToHexString(x);
 
-			std::string file_path = path + "/" + prefix + table_name + ".csv";
+			std::string file_path = path + "\\" + prefix + table_name + ".csv";
 
 			std::ifstream inFile(file_path);
 			int64_t cnt_lines = std::count(std::istreambuf_iterator<char>(inFile), std::istreambuf_iterator<char>(), '\n');
@@ -98,7 +98,7 @@ namespace tools {
 						lines.push_back(line);
 					}
 
-					ret = push_to_memory((uint8_t*)tables[x].table, lines, 20);
+					ret = pushToMemory((uint8_t*)tables[x].table, lines, 20);
 					if (ret != 0) {
 						std::cerr << "\n!!!ERROR push_to_memory, file: " << file_path << std::endl;
 						ret = -1;
@@ -120,7 +120,7 @@ namespace tools {
 #pragma omp critical 
 				{
 					all_lines += cnt_lines;
-					std::cout << "PROCESSED " << cnt_lines << " ROWS IN FILE " << file_path << std::endl;
+					std::cout << "PROCESSED " << cnt_lines << " ROWS IN FILE " << file_path << "\r";
 				}
 			}
 			else {
@@ -162,13 +162,13 @@ namespace tools {
 		return ret;
 	}
 
-	void Clear_Files() {
+	void clearFiles() {
 		std::ofstream out;
 		out.open(FILE_PATH_RESULT);
 		out.close();
 	}
 #define NUM_PACKETS_SAVE_IN_FILE 16
-	void Save_Result(char* mnemonic, uint8_t* hash160, size_t num_wallets) {
+	void saveResult(char* mnemonic, uint8_t* hash160, size_t num_wallets) {
 		std::ofstream out;
 		for (int x = 0; x < NUM_PACKETS_SAVE_IN_FILE; x++) {
 			static bool start_string = false;
@@ -211,13 +211,13 @@ namespace tools {
 			out.close();
 		}
 	}
-	void Add_Found_Seed_In_File(std::string seed, const char* address) {
+	void addFoundMnemonicInFile(std::string mnemonic, const char* address) {
 		std::ofstream out;
 		out.open(FILE_PATH_FOUND_ADDRESSES, std::ios::app);
 		if (out.is_open())
 		{
 			std::time_t result = std::time(nullptr);
-			out << seed << "," << (const char*)address << "," << std::asctime(std::localtime(&result));
+			out << mnemonic << "," << (const char*)address << "," << std::asctime(std::localtime(&result));
 		}
 		else
 		{
@@ -226,13 +226,13 @@ namespace tools {
 		out.close();
 	}
 
-	void Add_Hash_In_File_Test(std::string& seed_hexstr, std::string& hash160, std::string& hash160_in_table, int num_child, std::string& addr, std::string& addr_in_table, int out_bytes_equally) {
+	void addInFileTest(std::string& mnemonic, std::string& hash160, std::string& hash160_in_table, std::string& addr, std::string& addr_in_table) {
 		std::ofstream out;
 		out.open(FILE_PATH_FOUND_BYTES, std::ios::app);
 		if (out.is_open())
 		{
 			const std::time_t now = std::time(nullptr);
-			out << seed_hexstr << "," << num_child << "/0," << addr << "," << addr_in_table << "," << hash160 << "," << hash160_in_table << "," << out_bytes_equally << "," << std::asctime(std::localtime(&now));
+			out << mnemonic << "," << addr << "," << addr_in_table << "," << hash160 << "," << hash160_in_table << "," << std::asctime(std::localtime(&now));
 		}
 		else
 		{
@@ -241,14 +241,14 @@ namespace tools {
 		out.close();
 	}
 
-	int Print_Save_Ret(retStruct* ret) {
+	int checkResult(retStruct* ret) {
 		if (ret->found_legacy == 1)
 		{
 			std::string mnemonic_str = (const char*)ret->mnemonic_legacy_found;
 			std::string addr;
 
 			tools::encodeAddressBase58((const uint8_t*)ret->hash160_legacy_found, addr);
-			tools::Add_Found_Seed_In_File(mnemonic_str, addr.c_str());
+			tools::addFoundMnemonicInFile(mnemonic_str, addr.c_str());
 			std::cout << "!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n";
 			std::cout << "!!!FOUND LEGACY: " << mnemonic_str << ", " << addr << std::endl;
 			std::cout << "!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n";
@@ -259,7 +259,7 @@ namespace tools {
 			std::string mnemonic_str = (const char*)ret->mnemonic_segwit_found;
 			std::string addr;
 			tools::encodeAddressBase32((const uint8_t*)ret->hash160_segwit_found, addr);
-			tools::Add_Found_Seed_In_File(mnemonic_str, addr.c_str());
+			tools::addFoundMnemonicInFile(mnemonic_str, addr.c_str());
 			std::cout << "!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n";
 			std::cout << "!!!FOUND SEGWIT: " << mnemonic_str << ", " << addr << std::endl;
 			std::cout << "!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n";
@@ -278,7 +278,7 @@ namespace tools {
 			tools::encodeAddressBase58(hash160, addr);
 			tools::encodeAddressBase58(hash160_in_table, addr_in_table);
 			std::cout << "\n!!!FOUND LEGACY BYTES: " << mnemonic_str << "," << addr << "," << addr_in_table << "," << hash160 << "," << hash160_in_table << " \n";
-			tools::Add_Hash_In_File_Test(mnemonic_str, hash160, hash160_in_table, 0, addr, addr_in_table, 0);
+			tools::addInFileTest(mnemonic_str, hash160, hash160_in_table, addr, addr_in_table);
 		}
 		if (ret->found_segwit_bytes == 2)
 		{
@@ -293,7 +293,7 @@ namespace tools {
 			tools::encodeAddressBase32(hash160, addr);
 			tools::encodeAddressBase32(hash160_in_table, addr_in_table);
 			std::cout << "\n!!!FOUND SEGWIT BYTES: " << mnemonic_str << "," << addr << "," << addr_in_table << "," << hash160 << "," << hash160_in_table << " \n";
-			tools::Add_Hash_In_File_Test(mnemonic_str, hash160, hash160_in_table, 0, addr, addr_in_table, 0);
+			tools::addInFileTest(mnemonic_str, hash160, hash160_in_table, addr, addr_in_table);
 		}
 		return 0;
 	}
