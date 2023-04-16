@@ -1,11 +1,24 @@
 # Brute-force Mnemonic Bitcoin on GPU(CUDA)  
-## (Version 1.1)
-## Генерация мнемонических фраз Bitcoin и соответствующих приватных ключей адресов m/0/x, m/1/x, m/0/0/x, m/0/1/x, m/44'/0'/0'/0/x, m/44'/0'/0'/1/x, m/84'/0'/0'/0/x, m/84'/0'/0'/1/x. Поиск адресов в базе.
+## (Version 1.2)
+## Генерация мнемонических фраз Bitcoin и соответствующих приватных ключей адресов m/0/x, m/1/x, m/0/0/x, m/0/1/x, m/44'/0'/0'/0/x, m/44'/0'/0'/1/x, m/49'/0'/0'/0/x, m/49'/0'/0'/1/x, m/84'/0'/0'/0/x, m/84'/0'/0'/1/x. Поиск адресов в базе.
 ![](image/Screenshot_1.png)
 
 ## Файл config.cfg
- * ***"folder_database_legacy": "F:\\database_legacy"***  - путь к папке с таблицами адресов Bitcoin Legacy(BIP32, BIP44). Адреса в таблицах должны быть в формате hash160 и отсортированы программой https://github.com/Houzich/Convert-Addresses-To-Hash160-For-Brute-Force.
-* ***"folder_database_segwit": "F:\\database_segwit"***  - путь к папке с таблицами адресов Bitcoin Native SegWit(BIP84). Адреса в таблицах должны быть в формате hash160 и отсортированы программой https://github.com/Houzich/Convert-Addresses-To-Hash160-For-Brute-Force.
+ * ***"folder_tables_legacy": "F:\\tables_legacy"***  - путь к папке с таблицами адресов Bitcoin Legacy(BIP32, BIP44). Адреса в таблицах должны быть в формате hash160 и отсортированы программой https://github.com/Houzich/Convert-Addresses-To-Hash160-For-Brute-Force.
+ * ***"folder_tables_segwit": "F:\\tables_segwit"***  - путь к папке с таблицами адресов Bitcoin Legacy(BIP49). Адреса в таблицах должны быть в формате hash160 и отсортированы программой https://github.com/Houzich/Convert-Addresses-To-Hash160-For-Brute-Force.
+* ***"folder_tables_native_segwit": "F:\\tables_native_segwit"***  - путь к папке с таблицами адресов Bitcoin Native SegWit(BIP84). Адреса в таблицах должны быть в формате hash160 и отсортированы программой https://github.com/Houzich/Convert-Addresses-To-Hash160-For-Brute-Force.
+* ***"num_child_addresses": 10*** - количество генерируемых адресов для каждого патча. От 1 до 65,535. 
+
+* ***"path_m0_x": "yes"*** - генерировать ли адреса патча m/0/x? "yes" или "no".
+* ***"path_m1_x": "yes"*** - генерировать ли адреса патча m/1/x? "yes" или "no".
+* ***"path_m0_0_x": "yes"*** - генерировать ли адреса патча m/0/0/x? "yes" или "no".
+* ***"path_m0_1_x": "yes"*** - генерировать ли адреса патча m/0/1/x? "yes" или "no".
+* ***"path_m44h_0h_0h_0_x": "yes"*** - генерировать ли адреса патча m/44'/0'/0'/0/x? "yes" или "no".
+* ***"path_m44h_0h_0h_1_x": "yes"*** - генерировать ли адреса патча m/44'/0'/0'/1/x? "yes" или "no".
+* ***"path_m49h_0h_0h_0_x": "yes"*** - генерировать ли адреса патча m/49'/0'/0'/0/x? "yes" или "no".
+* ***"path_m49h_0h_0h_1_x": "yes"*** - генерировать ли адреса патча m/49'/0'/0'/1/x? "yes" или "no".
+* ***"path_m84h_0h_0h_0_x": "yes"*** - генерировать ли адреса патча m/84'/0'/0'/0/x? "yes" или "no".
+* ***"path_m84h_0h_0h_1_x": "yes"*** - генерировать ли адреса патча m/84'/0'/0'/1/x? "yes" или "no".
 * ***"cuda_grid": 1024*** - настройка под видеокарту.
 * ***"cuda_block": 256*** - настройка под видеокарту.
 Кол-во генерируемых мнемоник за раунд равно cuda_grid*cuda_block.
@@ -50,19 +63,19 @@
 Далее выводится кол-во кошельков генерируемых за раунд. И начинается процесс генерации.
 В ходе работы программы, постоянно обновляется надпись
 
-> *SPEED:    1,819 MNEMONICS/SECOND AND 291,040 ADDRESSES/SECOND, ROUND: 0*
+> *SPEED:      8440 MNEMONICS/SECOND AND 844,000 ADDRESSES/SECOND, ROUND: 0*
 
-Кол-во мнемоник и кол-во адресов генерируемых за секунду. В данном случае, для каждого сгенерированного кошелька генерировалось 160 адресов *(20 адресов патча m/0/x, 20 адресов патча m/1/x, 20 адресов патча m/0/0/x, 20 адресов патча m/0/1/x, 20 адресов патча m/44'/0'/0'/0/x, 20 адресов патча m/44'/0'/0'/0/x, 20 адресов патча m/84'/0'/0'/0/x и 20 адресов патча m/84'/0'/0'/1/x)*
+Кол-во мнемоник и кол-во адресов генерируемых за секунду. В данном случае, для каждого сгенерированного кошелька генерировалось 100 адресов *(10 адресов патча m/0/x, 10 адресов патча m/1/x, 10 адресов патча m/0/0/x, 10 адресов патча m/0/1/x, 10 адресов патча m/44'/0'/0'/0/x, 10 адресов патча m/44'/0'/0'/0/x, 10 адресов патча m/49'/0'/0'/0/x, 10 адресов патча m/49'/0'/0'/0/x, 10 адресов патча m/84'/0'/0'/0/x и 10 адресов патча m/84'/0'/0'/1/x)*
 
 # Проверка на совпадение по байтам
 Если в пункте 5 ввести, к примеру, 5. То периодически на экране будут появляться надписи такого формата:
 
-> *!!!FOUND SEGWIT BYTES: mean negative bounce charge correct improve shaft moral helmet border grocery giggle,bc1qg2ex46ju3mf0ntycmzm0z2uu8e35gyl00cjq8w,bc1qg2ex46juygvzgme2jaxjp9jguhjrqdkjh8xdlj,42B26AEA5C8ED2F9AC98D8B6F12B9C3E634413EF,42B26AEA5C2218246F2A974D209648E5E43036D2*
+> *!!!FOUND IN ADDRESS(HASH160) (m/84'/0'/0'/1/6) EQUAL 6 BYTES: special weekend hope visual subway sword cactus replace aunt okay waste ride, bc1q3c4l9cgkl76x6lppr47rgljkzaau4v4a6u8ch8, bc1q3c4l9cgkla8yvtzgpl5296850rka6ks0gxkqcl, 8E2BF2E116FFB46D7C211D7C347E56177BCAB2BD, 8E2BF2E116FF4E462C480FE8A2E8F478EDDD5A0F*
 
-Мнемоника сгенерированного кошелька. Его адрес. Адрес в базе, который совпал по первым байтам с адресом мнемоники. И соответственно их представление в 20-и байтовом формате. Можно посчитать одинаковые байты и убедиться в этом.
+Мнемоника сгенерированного кошелька. Адрес кошелька. Адрес в базе, который совпал по первым байтам с адресом мнемоники. И соответственно их представление в 20-и байтовом формате Hash160. Можно посчитать одинаковые байты и убедиться в этом.
 Все эти адреса сохраняются в лог-файл Found_Bytes.csv.
 В файле, строки хранятся в виде:</br>
-*mean negative bounce charge correct improve shaft moral helmet border grocery giggle,bc1qg2ex46ju3mf0ntycmzm0z2uu8e35gyl00cjq8w,bc1qg2ex46juygvzgme2jaxjp9jguhjrqdkjh8xdlj,42B26AEA5C8ED2F9AC98D8B6F12B9C3E634413EF,42B26AEA5C2218246F2A974D209648E5E43036D2,Sun Apr  2 22:16:46 2023*
+*special weekend hope visual subway sword cactus replace aunt okay waste ride, address path m/84'/0'/0'/1/6:, bc1q3c4l9cgkl76x6lppr47rgljkzaau4v4a6u8ch8, address in table:, bc1q3c4l9cgkla8yvtzgpl5296850rka6ks0gxkqcl, hash160 path m/84'/0'/0'/1/6:, 8E2BF2E116FFB46D7C211D7C347E56177BCAB2BDhash160 in table:, 8E2BF2E116FF4E462C480FE8A2E8F478EDDD5A0F, Sun Apr 16 18:11:54 2023*
 
 
 
@@ -72,7 +85,7 @@
 !!!FOUND!!!</br>
 !!!FOUND!!!</br>
 !!!FOUND!!!</br>
-!!!FOUND SEGWIT: chicken jewel keen arm artefact disorder gravity claim sick female verb faint, 0x92F96C980AA87A1580961851A0EF93B578EAFFB8</br>
+!!!FOUND ADDRESS (m/49'/0'/0'/0/2): chicken jewel keen arm artefact disorder gravity claim sick female verb faint, 32AZej6V3qhSceTqTp6hmhrUCYaEBHRTP4</br>
 !!!FOUND!!!</br>
 !!!FOUND!!!</br>
 !!!FOUND!!!</br>
@@ -80,11 +93,15 @@
 
 Соответственно мнемоника и адрес который мы нашли. И информация добавиться в файл Found_Addresses.csv.
 В файле строки хранятся в виде:</br>
-*chicken jewel keen arm artefact disorder gravity claim sick female verb faint, 1Q4Qgk9pftrXRna1LETwcHXuoKJVrKSfm,Sun Apr  2 12:51:42 2023*
+*chicken jewel keen arm artefact disorder gravity claim sick female verb faint, address path m/49'/0'/0'/0/2, 1Q4Qgk9pftrXRna1LETwcHXuoKJVrKSfm, Sun Apr  2 12:51:42 2023*
 
-## Файл BruteForceMnemonicBitcoinV10.exe находится в папке exe (патчи 0..4)
-## Файл BruteForceMnemonicBitcoinV11.exe находится в папке exe (патчи 0..19)
+## Файл BruteForceMnemonicBitcoinV12.exe находится в папке exe
 
 
 
 ### ОБСУЖДЕНИЕ КОДА: https://t.me/BRUTE_FORCE_CRYPTO_WALLET
+
+
+## If you want to support the project don't hesitate to donate.
+**BTC** - bc1qqldn5lyk54rcvf5ndruh525v0qz8lf9yu5t9a5</br>
+**ETH** - 0x1193901D25604F55f5fA93Be09F5203b4B6F265f

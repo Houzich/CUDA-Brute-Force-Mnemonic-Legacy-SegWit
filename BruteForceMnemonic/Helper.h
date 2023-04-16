@@ -1,8 +1,8 @@
 /**
   ******************************************************************************
   * @author		Anton Houzich
-  * @version	V1.0.0
-  * @date		20-March-2023
+  * @version	V1.2.0
+  * @date		16-April-2023
   * @mail		houzich_anton@mail.ru
   * discussion  https://t.me/BRUTE_FORCE_CRYPTO_WALLET
   ******************************************************************************
@@ -34,6 +34,7 @@ class host_buffers_class
 public:
 	tableStruct tables_legacy[256] = { NULL };
 	tableStruct tables_segwit[256] = { NULL };
+	tableStruct tables_native_segwit[256] = { NULL };
 
 	uint64_t* entropy = NULL;
 	uint8_t* mnemonic = NULL;
@@ -62,12 +63,12 @@ public:
 		//std::cout << "MALLOC RAM MEMORY SIZE (" << buff_name << "): " << std::to_string((float)size / (1024.0f * 1024.0f)) << " MB\n";
 		return 0;
 	}
-	int malloc(size_t size_entropy_buf, size_t size_mnemonic_buf, size_t size_hash160_bip44_buf)
+	int malloc(size_t size_entropy_buf, size_t size_mnemonic_buf, size_t size_hash160_buf)
 	{
 		memory_size = 0;
 		if (mallocHost((void**)&entropy, size_entropy_buf, &memory_size, "entropy") != 0) return -1;
 		if (alignedMalloc((void**)&mnemonic, size_mnemonic_buf, &memory_size, "mnemonic") != 0) return -1;
-		if (alignedMalloc((void**)&hash160, size_hash160_bip44_buf, &memory_size, "hash160") != 0) return -1;
+		if (alignedMalloc((void**)&hash160, size_hash160_buf, &memory_size, "hash160") != 0) return -1;
 		if (mallocHost((void**)&ret, sizeof(retStruct), &memory_size, "ret") != 0) return -1;
 		std::cout << "MALLOC ALL RAM MEMORY SIZE (HOST): " << std::to_string((float)memory_size / (1024.0f * 1024.0f)) << " MB\n";
 		return 0;
@@ -85,6 +86,13 @@ public:
 			{
 				free(tables_segwit[x].table);
 				tables_segwit[x].table = NULL;
+			}
+		}
+		for (int x = 0; x < 256; x++) {
+			if (tables_native_segwit[x].table != NULL)
+			{
+				free(tables_native_segwit[x].table);
+				tables_native_segwit[x].table = NULL;
 			}
 		}	
 	}
@@ -110,6 +118,9 @@ public:
 
 	tableStruct tables_segwit[256] = { NULL };
 	tableStruct* dev_tables_segwit;
+
+	tableStruct tables_native_segwit[256] = { NULL };
+	tableStruct* dev_tables_native_segwit;
 
 	uint64_t* entropy = NULL;
 	uint8_t* mnemonic = NULL;
@@ -139,6 +150,7 @@ public:
 		if (cudaMallocDevice((uint8_t**)&hash160, size_hash160_bip44_buf, &memory_size, "hash160") != 0) return -1;
 		if (cudaMallocDevice((uint8_t**)&dev_tables_legacy, sizeof(tableStruct) * 256, &memory_size, "dev_tables_legacy") != 0) return -1;
 		if (cudaMallocDevice((uint8_t**)&dev_tables_segwit, sizeof(tableStruct) * 256, &memory_size, "dev_tables_segwit") != 0) return -1;
+		if (cudaMallocDevice((uint8_t**)&dev_tables_native_segwit, sizeof(tableStruct) * 256, &memory_size, "dev_tables_native_segwit") != 0) return -1;
 		if (cudaMallocDevice((uint8_t**)&ret, sizeof(retStruct), &memory_size, "ret") != 0) return -1;
 		std::cout << "MALLOC ALL MEMORY SIZE (GPU): " << std::to_string((float)(memory_size) / (1024.0f * 1024.0f)) << " MB\n";
 		return 0;
@@ -155,6 +167,11 @@ public:
 				cudaFree((void*)dev_tables_segwit[x].table);
 		}
 		cudaFree(dev_tables_segwit);
+		for (int x = 0; x < 256; x++) {
+			if (dev_tables_native_segwit[x].table != NULL)
+				cudaFree((void*)dev_tables_native_segwit[x].table);
+		}
+		cudaFree(dev_tables_native_segwit);
 	}
 
 	~device_buffers_class()
@@ -179,18 +196,25 @@ public:
 	size_t size_mnemonic_buf = 0;
 	size_t size_hash160_buf = 0;
 	size_t wallets_in_round_gpu = 0;
+	size_t num_paths = 0;
+	size_t num_childs = 0;
+	size_t num_all_childs = 0;
 public:
 	data_class()
 	{
 
 	}
 
-	int malloc(size_t cuda_grid, size_t cuda_block, bool alloc_buff_for_save)
+	int malloc(size_t cuda_grid, size_t cuda_block, size_t num_paths, size_t num_childs, bool alloc_buff_for_save)
 	{
+		this->num_paths = num_paths;
+		this->num_childs = num_childs;
+		this->num_all_childs = num_paths * num_childs;
+
 		size_t num_wallet = cuda_grid * cuda_block;
 		size_t size_entropy_buf = sizeof(uint64_t) * 2;
 		size_t size_mnemonic_buf = SIZE_MNEMONIC_FRAME * num_wallet;
-		size_t size_hash160_buf = 20 * num_wallet * NUM_ALL_CHILDS;
+		size_t size_hash160_buf = 20 * num_wallet * this->num_all_childs;
 		if (!alloc_buff_for_save)
 		{
 			size_mnemonic_buf = 0;

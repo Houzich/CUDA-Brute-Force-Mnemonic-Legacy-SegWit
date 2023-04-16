@@ -1,8 +1,8 @@
 ﻿/**
   ******************************************************************************
   * @author		Anton Houzich
-  * @version	V1.0.0
-  * @date		20-March-2023
+  * @version	V1.2.0
+  * @date		16-April-2023
   * @mail		houzich_anton@mail.ru
   * discussion  https://t.me/BRUTE_FORCE_CRYPTO_WALLET
   ******************************************************************************
@@ -167,29 +167,54 @@ namespace tools {
 		out.open(FILE_PATH_RESULT);
 		out.close();
 	}
-#define NUM_PACKETS_SAVE_IN_FILE 16
-	void saveResult(char* mnemonic, uint8_t* hash160, size_t num_wallets) {
+
+	static uint32_t calcCurrPath(uint32_t* path)
+	{
+		uint32_t curr_path = 0;
+		for (int num = 0; num < 10; num++)
+		{
+			if (path[num] != 0)
+			{
+				curr_path = num;
+				path[num] = 0;
+				return curr_path;
+			}
+		}
+		return curr_path;
+	}
+
+	void saveResult(char* mnemonic, uint8_t* hash160, size_t num_wallets, size_t num_all_childs, size_t num_childs, uint32_t path_generate[10]) {
 		std::ofstream out;
 		for (int x = 0; x < NUM_PACKETS_SAVE_IN_FILE; x++) {
 			static bool start_string = false;
 			out.open(FILE_PATH_RESULT, std::ios::app);
 			if (out.is_open())
 			{
-				//#pragma omp parallel for 
+				#pragma omp parallel for 
 				for (int i = x * (int)num_wallets / NUM_PACKETS_SAVE_IN_FILE; i < (x * (int)num_wallets / NUM_PACKETS_SAVE_IN_FILE + (int)num_wallets / NUM_PACKETS_SAVE_IN_FILE); i++) {
 					std::string addr;
 					//std::string hash_str;
 					std::stringstream ss;
 
 					ss << (const char*)&mnemonic[SIZE_MNEMONIC_FRAME * i];
-					for (int ii = 0; ii < NUM_ALL_CHILDS; ii++) {
-						uint8_t* hash = (uint8_t*)&hash160[(i * NUM_ALL_CHILDS + ii) * 20];
-						if (ii >= (NUM_ALL_CHILDS - (2 * NUM_CHILDS)))
+					uint32_t curr_path = 66;
+					uint32_t path[10];
+					for (int num = 0; num < 10; num++) path[num] = path_generate[num];
+
+					for (int ii = 0; ii < num_all_childs; ii++) {
+						uint8_t* hash = (uint8_t*)&hash160[(i * num_all_childs + ii) * 20];
+						if(ii % num_childs == 0)
+							curr_path = calcCurrPath(path);
+						if (curr_path == 8 || curr_path == 9)
 						{
 							char address[42 + 1];
 							segwit_addr_encode(address, "bc", 0, (const uint8_t*)hash, 20);
 							addr = std::string(address);
 							encodeAddressBase32((const uint8_t*)hash, addr);
+						}
+						else if (curr_path == 6 || curr_path == 7)
+						{
+							encodeAddressBIP49((const uint8_t*)hash, addr);
 						}
 						else
 						{
@@ -198,10 +223,10 @@ namespace tools {
 						ss << "," << addr;
 					}
 					ss << '\n';
-					///#pragma omp critical (SaveChilds)
-					//				{
+					#pragma omp critical (SaveChilds)
+									{
 					out << ss.str();
-					//				}
+									}
 				}
 			}
 			else
@@ -211,13 +236,14 @@ namespace tools {
 			out.close();
 		}
 	}
-	void addFoundMnemonicInFile(std::string mnemonic, const char* address) {
+	void addFoundMnemonicInFile(std::string path, std::string mnemonic, std::string address) {
 		std::ofstream out;
+		std::string pth = path + ":";
 		out.open(FILE_PATH_FOUND_ADDRESSES, std::ios::app);
 		if (out.is_open())
 		{
 			std::time_t result = std::time(nullptr);
-			out << mnemonic << "," << (const char*)address << "," << std::asctime(std::localtime(&result));
+			out << mnemonic << ",address path " << pth << "," << address << "," << std::asctime(std::localtime(&result));
 		}
 		else
 		{
@@ -226,13 +252,14 @@ namespace tools {
 		out.close();
 	}
 
-	void addInFileTest(std::string& mnemonic, std::string& hash160, std::string& hash160_in_table, std::string& addr, std::string& addr_in_table) {
+	void addInFileTest(std::string& path, std::string& mnemonic, std::string& hash160, std::string& hash160_in_table, std::string& addr, std::string& addr_in_table) {
 		std::ofstream out;
+		std::string pth = path + ":";
 		out.open(FILE_PATH_FOUND_BYTES, std::ios::app);
 		if (out.is_open())
 		{
 			const std::time_t now = std::time(nullptr);
-			out << mnemonic << "," << addr << "," << addr_in_table << "," << hash160 << "," << hash160_in_table << "," << std::asctime(std::localtime(&now));
+			out << mnemonic << ",address path " << pth << "," << addr << "," << "address in table:," << addr_in_table << ",hash160 path " << pth << "," << hash160 << "hash160 in table:," << hash160_in_table << "," << std::asctime(std::localtime(&now));
 		}
 		else
 		{
@@ -241,59 +268,128 @@ namespace tools {
 		out.close();
 	}
 
+	std::string getPath(uint32_t path, uint32_t child)
+	{
+		std::stringstream ss;
+		std::string pth = ""; 
+		if (path == 0) ss << "m/0/" << child;
+		if (path == 1) ss << "m/1/" << child;
+		if (path == 2) ss << "m/0/0/" << child;
+		if (path == 3) ss << "m/0/1/" << child;
+		if (path == 4) ss << "m/44'/0'/0'/0/" << child;
+		if (path == 5) ss << "m/44'/0'/0'/1/" << child;
+		if (path == 6) ss << "m/49'/0'/0'/0/" << child;
+		if (path == 7) ss << "m/49'/0'/0'/1/" << child;
+		if (path == 8) ss << "m/84'/0'/0'/0/" << child;
+		if (path == 9) ss << "m/84'/0'/0'/1/" << child;
+		return ss.str();
+	}
+
+
+
+
 	int checkResult(retStruct* ret) {
-		if (ret->found_legacy == 1)
+		if (ret->f[0].found == 1)
 		{
-			std::string mnemonic_str = (const char*)ret->mnemonic_legacy_found;
+			std::string mnemonic_str = (const char*)ret->f[0].mnemonic;
 			std::string addr;
-
-			tools::encodeAddressBase58((const uint8_t*)ret->hash160_legacy_found, addr);
-			tools::addFoundMnemonicInFile(mnemonic_str, addr.c_str());
+			std::string path = getPath(ret->f[0].path, ret->f[0].child);
+			tools::encodeAddressBase58((const uint8_t*)ret->f[0].hash160, addr);
+			tools::addFoundMnemonicInFile(path, mnemonic_str, addr.c_str());
 			std::cout << "!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n";
-			std::cout << "!!!FOUND LEGACY: " << mnemonic_str << ", " << addr << std::endl;
+			std::cout << "!!!FOUND ADDRESS ("<< path <<"): " << mnemonic_str << ", " << addr << std::endl;
 			std::cout << "!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n";
 
 		}
-		if (ret->found_segwit == 1)
+		if (ret->f[1].found == 1)
 		{
-			std::string mnemonic_str = (const char*)ret->mnemonic_segwit_found;
+			std::string mnemonic_str = (const char*)ret->f[1].mnemonic;
 			std::string addr;
-			tools::encodeAddressBase32((const uint8_t*)ret->hash160_segwit_found, addr);
-			tools::addFoundMnemonicInFile(mnemonic_str, addr.c_str());
+			std::string path = getPath(ret->f[1].path, ret->f[1].child);
+			tools::encodeAddressBIP49((const uint8_t*)ret->f[1].hash160, addr);
+			tools::addFoundMnemonicInFile(path, mnemonic_str, addr.c_str());
 			std::cout << "!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n";
-			std::cout << "!!!FOUND SEGWIT: " << mnemonic_str << ", " << addr << std::endl;
+			std::cout << "!!!FOUND ADDRESS (" << path << "): " << mnemonic_str << ", " << addr << std::endl;
 			std::cout << "!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n";
 
 		}
-		if (ret->found_legacy_bytes == 2)
+		if (ret->f[2].found == 1)
 		{
-			std::string hash160 = tools::bytesToHexString((const uint8_t*)ret->hash160_legacy_bytes_found, 20);
+			std::string mnemonic_str = (const char*)ret->f[2].mnemonic;
+			std::string addr;
+			std::string path = getPath(ret->f[2].path, ret->f[2].child);
+			tools::encodeAddressBase32((const uint8_t*)ret->f[2].hash160, addr);
+			tools::addFoundMnemonicInFile(path, mnemonic_str, addr.c_str());
+			std::cout << "!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n";
+			std::cout << "!!!FOUND ADDRESS (" << path << "): " << mnemonic_str << ", " << addr << std::endl;
+			std::cout << "!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n!!!FOUND!!!\n";
+
+		}
+		if (ret->f[0].found_bytes == 2)
+		{
+			int num_bytes = 0;
 			uint32_t hash_reverse[5];
-			tools::reverseHashUint32(ret->hash160_legacy_bytes_from_table, hash_reverse);
+			tools::reverseHashUint32(ret->f[0].hash160_bytes_from_table, hash_reverse);
+			for (int i = 0; i < 20; i++)
+			{
+				if (*(uint8_t*)((uint8_t*)ret->f[0].hash160_bytes + i) != *(uint8_t*)((uint8_t*)hash_reverse + i)) break;
+				num_bytes++;
+			}
+
+			std::string hash160 = tools::bytesToHexString((const uint8_t*)ret->f[0].hash160_bytes, 20);
 			std::string hash160_in_table = tools::bytesToHexString((const uint8_t*)hash_reverse, 20);
-			std::string mnemonic_str = (const char*)ret->mnemonic_legacy_bytes_found;
+			std::string mnemonic_str = (const char*)ret->f[0].mnemonic_bytes;
 			std::string addr;
 			std::string addr_in_table;
-
-			tools::encodeAddressBase58(hash160, addr);
-			tools::encodeAddressBase58(hash160_in_table, addr_in_table);
-			std::cout << "\n!!!FOUND LEGACY BYTES: " << mnemonic_str << "," << addr << "," << addr_in_table << "," << hash160 << "," << hash160_in_table << " \n";
-			tools::addInFileTest(mnemonic_str, hash160, hash160_in_table, addr, addr_in_table);
+			std::string path = getPath(ret->f[0].path, ret->f[0].child);
+			tools::encodeAddressBase58((const uint8_t*)ret->f[0].hash160_bytes, addr);
+			tools::encodeAddressBase58((const uint8_t*)hash_reverse, addr_in_table);
+			std::cout << "\n!!!FOUND IN ADDRESS(HASH160) (" << path << ") EQUAL " << num_bytes << " BYTES: " << mnemonic_str << "," << addr << "," << addr_in_table << "," << hash160 << "," << hash160_in_table << " \n";
+			tools::addInFileTest(path, mnemonic_str, hash160, hash160_in_table, addr, addr_in_table);
 		}
-		if (ret->found_segwit_bytes == 2)
+
+		if (ret->f[1].found_bytes == 2)
 		{
-			std::string hash160 = tools::bytesToHexString((const uint8_t*)ret->hash160_segwit_bytes_found, 20);
+			int num_bytes = 0;
 			uint32_t hash_reverse[5];
-			tools::reverseHashUint32(ret->hash160_segwit_bytes_from_table, hash_reverse);
+			tools::reverseHashUint32(ret->f[1].hash160_bytes_from_table, hash_reverse);
+			for (int i = 0; i < 20; i++)
+			{
+				if (*(uint8_t*)((uint8_t*)ret->f[1].hash160_bytes + i) != *(uint8_t*)((uint8_t*)hash_reverse + i)) break;
+				num_bytes++;
+			}
+			std::string hash160 = tools::bytesToHexString((const uint8_t*)ret->f[1].hash160_bytes, 20);
 			std::string hash160_in_table = tools::bytesToHexString((const uint8_t*)hash_reverse, 20);
-			std::string mnemonic_str = (const char*)ret->mnemonic_segwit_bytes_found;
+			std::string mnemonic_str = (const char*)ret->f[1].mnemonic_bytes;;
 			std::string addr;
 			std::string addr_in_table;
+			std::string path = getPath(ret->f[1].path, ret->f[1].child);
+			tools::encodeAddressBIP49((const uint8_t*)ret->f[1].hash160_bytes, addr);
+			tools::encodeAddressBIP49((const uint8_t*)hash_reverse, addr_in_table);
+			std::cout << "\n!!!FOUND IN ADDRESS(HASH160) (" << path << ") EQUAL " << num_bytes << " BYTES: " << mnemonic_str << "," << addr << "," << addr_in_table << "," << hash160 << "," << hash160_in_table << " \n";
+			tools::addInFileTest(path, mnemonic_str, hash160, hash160_in_table, addr, addr_in_table);
+		}
 
-			tools::encodeAddressBase32(hash160, addr);
-			tools::encodeAddressBase32(hash160_in_table, addr_in_table);
-			std::cout << "\n!!!FOUND SEGWIT BYTES: " << mnemonic_str << "," << addr << "," << addr_in_table << "," << hash160 << "," << hash160_in_table << " \n";
-			tools::addInFileTest(mnemonic_str, hash160, hash160_in_table, addr, addr_in_table);
+		if (ret->f[2].found_bytes == 2)
+		{
+			int num_bytes = 0;
+			uint32_t hash_reverse[5];
+			tools::reverseHashUint32(ret->f[2].hash160_bytes_from_table, hash_reverse);
+			for (int i = 0; i < 20; i++)
+			{
+				if (*(uint8_t*)((uint8_t*)ret->f[2].hash160_bytes + i) != *(uint8_t*)((uint8_t*)hash_reverse + i)) break;
+				num_bytes++;
+			}
+			std::string hash160 = tools::bytesToHexString((const uint8_t*)ret->f[2].hash160_bytes, 20);
+			std::string hash160_in_table = tools::bytesToHexString((const uint8_t*)hash_reverse, 20);
+			std::string mnemonic_str = (const char*)ret->f[2].mnemonic_bytes;;
+			std::string addr;
+			std::string addr_in_table;
+			std::string path = getPath(ret->f[2].path, ret->f[2].child);
+			tools::encodeAddressBase32((const uint8_t*)ret->f[2].hash160_bytes, addr);
+			tools::encodeAddressBase32((const uint8_t*)hash_reverse, addr_in_table);
+			std::cout << "\n!!!FOUND IN ADDRESS(HASH160) (" << path << ") EQUAL " << num_bytes << " BYTES: " << mnemonic_str << "," << addr << "," << addr_in_table << "," << hash160 << "," << hash160_in_table << " \n";
+			tools::addInFileTest(path, mnemonic_str, hash160, hash160_in_table, addr, addr_in_table);
 		}
 		return 0;
 	}

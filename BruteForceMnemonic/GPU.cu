@@ -1,8 +1,8 @@
 ﻿/**
   ******************************************************************************
   * @author		Anton Houzich
-  * @version	V1.0.0
-  * @date		20-March-2023
+  * @version	V1.2.0
+  * @date		16-April-2023
   * @mail		houzich_anton@mail.ru
   * discussion  https://t.me/BRUTE_FORCE_CRYPTO_WALLET
   ******************************************************************************
@@ -18,10 +18,10 @@
 
 
 
-//#define F1(x,y,z) (bitselect(z,y,x))
-//#define F0(x,y,z) (bitselect (x, y, ((x) ^ (z))))
+  //#define F1(x,y,z) (bitselect(z,y,x))
+  //#define F0(x,y,z) (bitselect (x, y, ((x) ^ (z))))
 
-/* Two of six logical functions used in SHA-1, SHA-256, SHA-384, and SHA-512: */
+  /* Two of six logical functions used in SHA-1, SHA-256, SHA-384, and SHA-512: */
 #define SHAF1(x,y,z)	(((x) & (y)) ^ ((~(x)) & (z)))
 #define SHAF0(x,y,z)	(((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
 
@@ -178,10 +178,6 @@ static void md_pad_128(uint64_t* msg, const long msgLen_bytes) {
 	for (i = padLongIndex + 3; i < 32; i++) {
 		msg[i] = 0;
 	}
-	//if (msgLen_bytes == 140)
-	//{
-	//	printf("md_pad_128 -> i = %d, msgLen_bytes = %d, padLongIndex = %u, overhang = %u\n", i, msgLen_bytes, padLongIndex, overhang);
-	//}
 	// i = 32
 	// int nBlocks = i / 16; // nBlocks = 2
 	msg[i - 2] = 0; // msg[30] = 0; already did this in loop..
@@ -307,12 +303,7 @@ static void sha256_process2(const uint32_t* W, uint32_t* digest) {
 
 __device__
 static void sha512(uint64_t* input, const uint32_t length, uint64_t* hash) {
-	//printf("---------------------------\n");
 	md_pad_128(input, (const uint64_t)length);
-	//printf("nBlocks %d\n", nBlocks);
-	//printf("---------------------------\n");
-	//for (int i = 0; i < 32; i++) 
-	//    printf("input[%d] 0x%llX\n", i, input[i]);
 	uint64_t W[80];
 	uint64_t State[8];
 	//for (int i = 16; i < 80; i++) {
@@ -2503,7 +2494,7 @@ int secp256k1_ec_seckey_tweak_add(uint8_t* seckey, const uint8_t* tweak) {
 }
 
 __device__
-void hardened_private_child_from_private(const extended_private_key_t* parent, extended_private_key_t* child, uint8_t hardened_child_number) {
+void hardened_private_child_from_private(const extended_private_key_t* parent, extended_private_key_t* child, uint16_t hardened_child_number) {
 
 	uint32_t hmacsha512_result[64 / 4];
 	uint8_t hmac_input[40]; //37 bytes
@@ -2513,10 +2504,10 @@ void hardened_private_child_from_private(const extended_private_key_t* parent, e
 	}
 	hmac_input[33] = 0x80;
 	hmac_input[34] = 0;
-	hmac_input[35] = 0;
-	hmac_input[36] = hardened_child_number;
+	//*(uint16_t*)&hmac_input[35] = hardened_child_number;
+	hmac_input[35] = *(uint8_t*)((uint8_t*)&hardened_child_number + 1);
+	hmac_input[36] = *(uint8_t*)&hardened_child_number;
 	hmac_sha512_const((uint32_t*)parent->chain_code, (uint32_t*)&hmac_input, (uint32_t*)&hmacsha512_result);
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	//private_key_t sk;
 	uint8_t sk[32];
 	memcpy((uint8_t*)&sk, (const uint8_t*)&hmacsha512_result, 32);
@@ -2529,7 +2520,7 @@ void hardened_private_child_from_private(const extended_private_key_t* parent, e
 
 }
 __device__
-void normal_private_child_from_private(const extended_private_key_t* parent, extended_private_key_t* child, uint8_t normal_child_number) {
+void normal_private_child_from_private(const extended_private_key_t* parent, extended_private_key_t* child, uint16_t normal_child_number) {
 	uint32_t hmacsha512_result[64 / 4];
 	extended_public_key_t pub;
 	calc_public(parent, &pub);
@@ -2537,8 +2528,9 @@ void normal_private_child_from_private(const extended_private_key_t* parent, ext
 	serialized_public_key(&pub, (uint8_t*)&hmac_input);
 	hmac_input[33] = 0;
 	hmac_input[34] = 0;
-	hmac_input[35] = 0;
-	hmac_input[36] = normal_child_number;
+	//*(uint16_t*)&hmac_input[35] = normal_child_number;
+	hmac_input[35] = *(uint8_t*)((uint8_t*)&normal_child_number + 1);
+	hmac_input[36] = *(uint8_t*)&normal_child_number;
 	hmac_sha512_const((uint32_t*)&parent->chain_code, (uint32_t*)&hmac_input, (uint32_t*)&hmacsha512_result);
 	uint8_t sk[32];
 	memcpy((uint8_t*)&sk, (const uint8_t*)&hmacsha512_result, 32);
@@ -2845,12 +2837,42 @@ void hash160(const uint8_t* input, int input_len, uint32_t* output) {
 	ripemd160_GPU((const uint8_t*)&sha256_result, 32, output);
 }
 __device__
-void calc_hash160(extended_public_key_t* pub, uint32_t* address_bytes) {
+void calc_hash160(extended_public_key_t* pub, uint32_t* hash160_bytes) {
 	//вроде если не заполнять нулями, то иногда считает не правильно
 	uint8_t serialized_pub_key[36] = { 0 };//36 а не 33, потому что там потом, бля на uint32_t переводиться и лишнии не нулевые байты появляются и все в пизду сыпиться
 	serialized_public_key(pub, (uint8_t*)&serialized_pub_key);
-	hash160((const uint8_t*)&serialized_pub_key, 33, address_bytes);
+	hash160((const uint8_t*)&serialized_pub_key, 33, hash160_bytes);
 }
+
+__device__
+void calc_hash160_bip49(extended_public_key_t* pub, uint32_t* hash160_bytes) {
+	uint8_t serialized_pub_key[36] = { 0 };//36 а не 33, потому что там потом, бля на uint32_t переводиться и лишнии не нулевые байты появляются и все в пизду сыпиться
+	serialized_public_key(pub, (uint8_t*)&serialized_pub_key);
+	uint8_t sha256_result[32];
+	sha256((const uint32_t*)serialized_pub_key, 33, (uint32_t*)&sha256_result);
+	RIPEMD160_CTX ctx;
+	ripemd160_Init(&ctx);
+	ripemd160_Update(&ctx, sha256_result, 32);
+	ripemd160_Final(&ctx, (uint32_t*)sha256_result);
+
+	////uint8_t hash[24];
+	serialized_pub_key[0] = 0;
+	serialized_pub_key[1] = 0x14;
+	for (int i = 0; i < 20; i++)
+		serialized_pub_key[i + 2] = sha256_result[i];
+	////*(uint32_t*)&serialized_pub_key[2] = hash160_bytes[0];
+	////*(uint32_t*)&serialized_pub_key[6] = hash160_bytes[1];
+	////*(uint32_t*)&serialized_pub_key[10] = hash160_bytes[2];
+	////*(uint32_t*)&serialized_pub_key[14] = hash160_bytes[3];
+	////*(uint32_t*)&serialized_pub_key[18] = hash160_bytes[4];
+	serialized_pub_key[22] = 0;
+	serialized_pub_key[23] = 0;
+	sha256((const uint32_t*)serialized_pub_key, 22, (uint32_t*)&sha256_result);
+	ripemd160_Init(&ctx);
+	ripemd160_Update(&ctx, sha256_result, 32);
+	ripemd160_Final(&ctx, (uint32_t*)hash160_bytes);
+}
+
 
 
 //#define SHA512_SHARED
@@ -2927,10 +2949,17 @@ __device__ void int_to_mnemonic(const uint64_t mnemonic_hi, const uint64_t mnemo
 }
 
 //#define printf(...)
-__constant__ uint64_t gpu_packet[1];
-__constant__ uint32_t num_bytes_find[1];
+__constant__ uint32_t dev_num_bytes_find[1];
+__constant__ uint32_t dev_generate_path[10];
+__constant__ uint32_t dev_num_paths[1];
+__constant__ uint32_t dev_num_child[1];
+
+
+
+
 __device__
-int Find_Hash_In_Table(const uint32_t* hash, const tableStruct table, const uint32_t* mnemonic, retStruct* ret, int num_bytes, bool isLegacy) {
+int Find_Hash_In_Table(const uint32_t* hash, const tableStruct table, const uint32_t* mnemonic, foundStruct* fnd_ret, int num_bytes, uint32_t path,
+	uint32_t child) {
 	int found = 0;
 	bool search_state = true;
 	uint32_t line_cnt = (table.size / 20);
@@ -2947,8 +2976,6 @@ int Find_Hash_In_Table(const uint32_t* hash, const tableStruct table, const uint
 	uint32_t* hash_from_table;
 	while (point < line_cnt) {
 		point_last = point;
-		//printf("interval = %lu\n", interval);
-
 		if (interval == 0) {
 			search_state = false;
 		}
@@ -3033,15 +3060,10 @@ int Find_Hash_In_Table(const uint32_t* hash, const tableStruct table, const uint
 			if (cmp == 0)
 			{
 				found = 1;
-				if (isLegacy) {
-					for (int i = 0; i < 5; i++) ret->hash160_legacy_found[i] = hash[i];
-					for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) ret->mnemonic_segwit_found[i] = mnemonic[i];
-				}
-				else
-				{
-					for (int i = 0; i < 5; i++) ret->hash160_segwit_found[i] = hash[i];
-					for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) ret->mnemonic_segwit_found[i] = mnemonic[i];
-				}
+				for (int i = 0; i < 5; i++) fnd_ret->hash160[i] = hash[i];
+				for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) fnd_ret->mnemonic[i] = mnemonic[i];
+				fnd_ret->path = path;
+				fnd_ret->child = child;
 			}
 			break;
 		}
@@ -3064,34 +3086,18 @@ int Find_Hash_In_Table(const uint32_t* hash, const tableStruct table, const uint
 
 		if (found == 2) {
 
-			if (isLegacy)
+			if (fnd_ret->found_bytes == 0)
 			{
-				if (ret->found_legacy_bytes == 0)
+				fnd_ret->found_bytes = found;
+				for (int i = 0; i < 5; i++)
 				{
-					ret->found_legacy_bytes = found;
-					for (int i = 0; i < 5; i++)
-					{
-						ret->hash160_legacy_bytes_from_table[i] = hash_from_table[i];
-						ret->hash160_legacy_bytes_found[i] = hash[i];
-					}
-					for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) ret->mnemonic_legacy_bytes_found[i] = mnemonic[i];
+					fnd_ret->hash160_bytes_from_table[i] = hash_from_table[i];
+					fnd_ret->hash160_bytes[i] = hash[i];
 				}
-
+				for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) fnd_ret->mnemonic_bytes[i] = mnemonic[i];
+				fnd_ret->path = path;
+				fnd_ret->child = child;
 			}
-			else
-			{
-				if (ret->found_segwit_bytes == 0)
-				{
-					ret->found_segwit_bytes = found;
-					for (int i = 0; i < 5; i++)
-					{
-						ret->hash160_segwit_bytes_from_table[i] = hash_from_table[i];
-						ret->hash160_segwit_bytes_found[i] = hash[i];
-					}
-					for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) ret->mnemonic_segwit_bytes_found[i] = mnemonic[i];
-				}
-			}
-
 			break;
 		}
 
@@ -3105,13 +3111,14 @@ void dev_search_hash160_in_tables(
 	const uint32_t* hash160_buffer,
 	const tableStruct* tables,
 	const uint32_t* mnemonic,
-	retStruct* ret,
-	bool isLegacy
+	foundStruct* ret,
+	uint32_t path,
+	uint32_t child
 )
 {
 	const uint8_t* hash160 = (const uint8_t*)hash160_buffer;
 	uint8_t num_tables = hash160[0];
-	int found = Find_Hash_In_Table(hash160_buffer, tables[num_tables], mnemonic, ret, num_bytes_find[0], isLegacy);
+	int found = Find_Hash_In_Table(hash160_buffer, tables[num_tables], mnemonic, ret, dev_num_bytes_find[0], path, child);
 
 }
 
@@ -3119,12 +3126,12 @@ __device__ void key_to_hash160(
 	const extended_private_key_t* master_private,
 	const tableStruct* tables_legacy,
 	const tableStruct* tables_segwit,
+	const tableStruct* tables_native_segwit,
 	const uint32_t* mnemonic,
 	retStruct* ret
 )
 {
 	uint32_t hash[(20 / 4)];
-#ifdef GENERATE_SEGWIT
 	extended_private_key_t target_key;
 	extended_private_key_t target_key_fo_pub;
 	extended_private_key_t master_private_fo_extint;
@@ -3133,321 +3140,368 @@ __device__ void key_to_hash160(
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
-	hardened_private_child_from_private(master_private, &target_key, 84);
-	hardened_private_child_from_private(&target_key, &target_key, 0);
-	hardened_private_child_from_private(&target_key, &master_private_fo_extint, 0);
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
-	//m/84'/0'/0'/0/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		hash160_for_public_key(&target_public_key, hash);
-		dev_search_hash160_in_tables(hash, tables_segwit, mnemonic, ret, false);
-	}
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
-	//m/84'/0'/0'/1/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		hash160_for_public_key(&target_public_key, hash);
-		dev_search_hash160_in_tables(hash, tables_segwit, mnemonic, ret, false);
-	}
-#elif defined (GENERATE_LEGACY_AND_SEGWIT)
-	extended_private_key_t target_key;
-	extended_private_key_t target_key_fo_pub;
-	extended_private_key_t master_private_fo_extint;
-	extended_public_key_t target_public_key;
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(master_private, &target_key, 0);
-	//m/0/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, hash);
-		dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, ret, true);
-	}
-
-
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(master_private, &target_key, 1);
-	//m/1/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, hash);
-		dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, ret, true);
-	}
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//m/0
-	normal_private_child_from_private(master_private, &master_private_fo_extint, 0);
-	//m/0/0
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
-	//m/0/0/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, hash);
-		dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, ret, true);
-	}
-	//m/0/1
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
-	//m/0/1/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, hash);
-		dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, ret, true);
+	if (dev_generate_path[0] != 0) {
+		normal_private_child_from_private(master_private, &target_key, 0);
+		//m/0/x
+		for (int i = 0; i < dev_num_child[0]; i++) {
+			normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+			calc_public(&target_key_fo_pub, &target_public_key);
+			calc_hash160(&target_public_key, hash);
+			dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, &ret->f[0], 0, i);
+		}
 	}
 
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
-	hardened_private_child_from_private(master_private, &target_key, 44);
-	hardened_private_child_from_private(&target_key, &target_key, 0);
-	hardened_private_child_from_private(&target_key, &master_private_fo_extint, 0);
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
-	//m/44'/0'/0'/0/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, hash);
-		dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, ret, true);
+	if (dev_generate_path[1] != 0) {
+		normal_private_child_from_private(master_private, &target_key, 1);
+		//m/1/x
+		for (int i = 0; i < dev_num_child[0]; i++) {
+			normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+			calc_public(&target_key_fo_pub, &target_public_key);
+			calc_hash160(&target_public_key, hash);
+			dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, &ret->f[0], 1, i);
+		}
 	}
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
-	//m/44'/0'/0'/1/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, hash);
-		dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, ret, true);
-	}
+	if ((dev_generate_path[2] != 0) || (dev_generate_path[3] != 0)) {
+		//m/0
+		normal_private_child_from_private(master_private, &master_private_fo_extint, 0);
 
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	hardened_private_child_from_private(master_private, &target_key, 84);
-	hardened_private_child_from_private(&target_key, &target_key, 0);
-	hardened_private_child_from_private(&target_key, &master_private_fo_extint, 0);
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
-	//m/84'/0'/0'/0/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, hash);
-		dev_search_hash160_in_tables(hash, tables_segwit, mnemonic, ret, false);
+		if (dev_generate_path[2] != 0) {
+			//m/0/0
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
+			//m/0/0/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160(&target_public_key, hash);
+				dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, &ret->f[0], 2, i);
+			}
+		}
+		if (dev_generate_path[3] != 0) {
+			//m/0/1
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
+			//m/0/1/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160(&target_public_key, hash);
+				dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, &ret->f[0], 3, i);
+			}
+		}
 	}
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
-	//m/84'/0'/0'/1/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, hash);
-		dev_search_hash160_in_tables(hash, tables_segwit, mnemonic, ret, false);
+	if ((dev_generate_path[4] != 0) || (dev_generate_path[5] != 0)) {
+		hardened_private_child_from_private(master_private, &target_key, 44);
+		hardened_private_child_from_private(&target_key, &target_key, 0);
+		hardened_private_child_from_private(&target_key, &master_private_fo_extint, 0);
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		if (dev_generate_path[4] != 0) {
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
+			//m/44'/0'/0'/0/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160(&target_public_key, hash);
+				dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, &ret->f[0], 4, i);
+			}
+		}
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		if (dev_generate_path[5] != 0) {
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
+			//m/44'/0'/0'/1/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160(&target_public_key, hash);
+				dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, &ret->f[0], 5, i);
+			}
+		}
 	}
-#endif //GENERATE_BIP32
+	//______________________________________________________________________________________________________________________
+	//______________________________________________________________________________________________________________________
+	//______________________________________________________________________________________________________________________
+	//______________________________________________________________________________________________________________________
+	if ((dev_generate_path[6] != 0) || (dev_generate_path[7] != 0)) {
+		hardened_private_child_from_private(master_private, &target_key, 49);
+		hardened_private_child_from_private(&target_key, &target_key, 0);
+		hardened_private_child_from_private(&target_key, &master_private_fo_extint, 0);
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		if (dev_generate_path[6] != 0) {
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
+			//m/49'/0'/0'/0/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160_bip49(&target_public_key, hash);
+				dev_search_hash160_in_tables(hash, tables_segwit, mnemonic, &ret->f[1], 6, i);
+			}
+		}
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		if (dev_generate_path[7] != 0) {
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
+			//m/49'/0'/0'/1/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160_bip49(&target_public_key, hash);
+				dev_search_hash160_in_tables(hash, tables_segwit, mnemonic, &ret->f[1], 7, i);
+			}
+		}
+	}
+	//______________________________________________________________________________________________________________________
+	//______________________________________________________________________________________________________________________
+	//______________________________________________________________________________________________________________________
+	//______________________________________________________________________________________________________________________
+	if ((dev_generate_path[8] != 0) || (dev_generate_path[9] != 0)) {
+		hardened_private_child_from_private(master_private, &target_key, 84);
+		hardened_private_child_from_private(&target_key, &target_key, 0);
+		hardened_private_child_from_private(&target_key, &master_private_fo_extint, 0);
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		if (dev_generate_path[8] != 0) {
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
+			//m/84'/0'/0'/0/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160(&target_public_key, hash);
+				dev_search_hash160_in_tables(hash, tables_native_segwit, mnemonic, &ret->f[2], 8, i);
+			}
+		}
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		if (dev_generate_path[9] != 0) {
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
+			//m/84'/0'/0'/1/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160(&target_public_key, hash);
+				dev_search_hash160_in_tables(hash, tables_native_segwit, mnemonic, &ret->f[2], 9, i);
+			}
+		}
+	}
 }
 
 __device__ void key_to_hash160_for_save(
 	const extended_private_key_t* master_private,
 	const tableStruct* tables_legacy,
 	const tableStruct* tables_segwit,
+	const tableStruct* tables_native_segwit,
 	const uint32_t* mnemonic,
 	retStruct* ret,
 	uint32_t* hash
 )
 {
-
-#ifdef GENERATE_SEGWIT
 	extended_private_key_t target_key;
 	extended_private_key_t target_key_fo_pub;
 	extended_private_key_t master_private_fo_extint;
 	extended_public_key_t target_public_key;
+	uint32_t point = 0;
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
-	hardened_private_child_from_private(master_private, &target_key, 84);
-	hardened_private_child_from_private(&target_key, &target_key, 0);
-	hardened_private_child_from_private(&target_key, &master_private_fo_extint, 0);
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
-	//m/84'/0'/0'/0/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		public_from_private(&target_key_fo_pub, &target_public_key);
-		hash160_for_public_key(&target_public_key, &hash[(i + NUM_CHILDS * 0) * 5]);
-		dev_search_hash160_in_tables(&hash[(i + NUM_CHILDS * 0) * 5], tables_segwit, mnemonic, ret, false);
+	if (dev_generate_path[0] != 0) {
+		normal_private_child_from_private(master_private, &target_key, 0);
+		//m/0/x
+		for (int i = 0; i < dev_num_child[0]; i++) {
+			normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+			calc_public(&target_key_fo_pub, &target_public_key);
+			calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
+			dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_legacy, mnemonic, &ret->f[0], 0, i);
+		}
+		point++;
 	}
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
-	//m/84'/0'/0'/1/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		public_from_private(&target_key_fo_pub, &target_public_key);
-		hash160_for_public_key(&target_public_key, &hash[(i + NUM_CHILDS * 1) * 5]);
-		dev_search_hash160_in_tables(&hash[(i + NUM_CHILDS * 1) * 5], tables_segwit, mnemonic, ret, false);
-	}
-#elif defined (GENERATE_LEGACY_AND_SEGWIT)
-	extended_private_key_t target_key;
-	extended_private_key_t target_key_fo_pub;
-	extended_private_key_t master_private_fo_extint;
-	extended_public_key_t target_public_key;
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(master_private, &target_key, 0);
-	//m/0/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, &hash[(i + NUM_CHILDS * 0) * 5]);
-		dev_search_hash160_in_tables(&hash[(i + NUM_CHILDS * 0) * 5], tables_legacy, mnemonic, ret, true);
-	}
-
-
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(master_private, &target_key, 1);
-	//m/1/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, &hash[(i + NUM_CHILDS * 1) * 5]);
-		dev_search_hash160_in_tables(&hash[(i + NUM_CHILDS * 1) * 5], tables_legacy, mnemonic, ret, true);
+	if (dev_generate_path[1] != 0) {
+		normal_private_child_from_private(master_private, &target_key, 1);
+		//m/1/x
+		for (int i = 0; i < dev_num_child[0]; i++) {
+			normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+			calc_public(&target_key_fo_pub, &target_public_key);
+			calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
+			dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_legacy, mnemonic, &ret->f[0], 1, i);
+		}
+		point++;
 	}
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
-	//m/0
-	normal_private_child_from_private(master_private, &master_private_fo_extint, 0);
-	//m/0/0
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
-	//m/0/0/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, &hash[(i + NUM_CHILDS * 2) * 5]);
-		dev_search_hash160_in_tables(&hash[(i + NUM_CHILDS * 2) * 5], tables_legacy, mnemonic, ret, true);
-	}
-	//m/0/1
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
-	//m/0/1/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, &hash[(i + NUM_CHILDS * 3) * 5]);
-		dev_search_hash160_in_tables(&hash[(i + NUM_CHILDS * 3) * 5], tables_legacy, mnemonic, ret, true);
-	}
-
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	hardened_private_child_from_private(master_private, &target_key, 44);
-	hardened_private_child_from_private(&target_key, &target_key, 0);
-	hardened_private_child_from_private(&target_key, &master_private_fo_extint, 0);
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
-	//m/44'/0'/0'/0/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, &hash[(i + NUM_CHILDS * 4) * 5]);
-		dev_search_hash160_in_tables(&hash[(i + NUM_CHILDS * 4) * 5], tables_legacy, mnemonic, ret, true);
+	if ((dev_generate_path[2] != 0) || (dev_generate_path[3] != 0)) {
+		//m/0
+		normal_private_child_from_private(master_private, &master_private_fo_extint, 0);
+		if (dev_generate_path[2] != 0) {
+			//m/0/0
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
+			//m/0/0/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
+				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_legacy, mnemonic, &ret->f[0], 2, i);
+			}
+			point++;
+		}
+		if (dev_generate_path[3] != 0) {
+			//m/0/1
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
+			//m/0/1/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
+				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_legacy, mnemonic, &ret->f[0], 3, i);
+			}
+			point++;
+		}
 	}
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
-	//m/44'/0'/0'/1/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, &hash[(i + NUM_CHILDS * 5) * 5]);
-		dev_search_hash160_in_tables(&hash[(i + NUM_CHILDS * 5) * 5], tables_legacy, mnemonic, ret, true);
+	if ((dev_generate_path[4] != 0) || (dev_generate_path[5] != 0)) {
+		hardened_private_child_from_private(master_private, &target_key, 44);
+		hardened_private_child_from_private(&target_key, &target_key, 0);
+		hardened_private_child_from_private(&target_key, &master_private_fo_extint, 0);
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		if (dev_generate_path[4] != 0) {
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
+			//m/44'/0'/0'/0/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
+				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_legacy, mnemonic, &ret->f[0], 4, i);
+			}
+			point++;
+		}
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		if (dev_generate_path[5] != 0) {
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
+			//m/44'/0'/0'/1/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
+				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_legacy, mnemonic, &ret->f[0], 5, i);
+			}
+			point++;
+		}
 	}
-
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
-	hardened_private_child_from_private(master_private, &target_key, 84);
-	hardened_private_child_from_private(&target_key, &target_key, 0);
-	hardened_private_child_from_private(&target_key, &master_private_fo_extint, 0);
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
-	//m/84'/0'/0'/0/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, &hash[(i + NUM_CHILDS * 6) * 5]);
-		dev_search_hash160_in_tables(&hash[(i + NUM_CHILDS * 6) * 5], tables_segwit, mnemonic, ret, false);
+	if ((dev_generate_path[6] != 0) || (dev_generate_path[7] != 0)) {
+		hardened_private_child_from_private(master_private, &target_key, 49);
+		hardened_private_child_from_private(&target_key, &target_key, 0);
+		hardened_private_child_from_private(&target_key, &master_private_fo_extint, 0);
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		if (dev_generate_path[6] != 0) {
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
+			//m/49'/0'/0'/0/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160_bip49(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
+				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_segwit, mnemonic, &ret->f[1], 6, i);
+			}
+			point++;
+		}
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		if (dev_generate_path[7] != 0) {
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
+			//m/49'/0'/0'/1/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160_bip49(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
+				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_segwit, mnemonic, &ret->f[1], 7, i);
+			}
+			point++;
+		}
 	}
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
 	//______________________________________________________________________________________________________________________
-	normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
-	//m/84'/0'/0'/1/x
-	for (int i = 0; i < NUM_CHILDS; i++) {
-		normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
-		calc_public(&target_key_fo_pub, &target_public_key);
-		calc_hash160(&target_public_key, &hash[(i + NUM_CHILDS * 7) * 5]);
-		dev_search_hash160_in_tables(&hash[(i + NUM_CHILDS * 7) * 5], tables_segwit, mnemonic, ret, false);
+	if ((dev_generate_path[8] != 0) || (dev_generate_path[9] != 0)) {
+		hardened_private_child_from_private(master_private, &target_key, 84);
+		hardened_private_child_from_private(&target_key, &target_key, 0);
+		hardened_private_child_from_private(&target_key, &master_private_fo_extint, 0);
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		if (dev_generate_path[8] != 0) {
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
+			//m/84'/0'/0'/0/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
+				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_native_segwit, mnemonic, &ret->f[2], 8, i);
+			}
+			point++;
+		}
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		//______________________________________________________________________________________________________________________
+		if (dev_generate_path[9] != 0) {
+			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
+			//m/84'/0'/0'/1/x
+			for (int i = 0; i < dev_num_child[0]; i++) {
+				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
+				calc_public(&target_key_fo_pub, &target_public_key);
+				calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
+				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_native_segwit, mnemonic, &ret->f[2], 9, i);
+			}
+		}
 	}
-#endif //GENERATE_BIP32
 }
 
 
@@ -3456,6 +3510,7 @@ __global__ void gl_bruteforce_mnemonic(
 	const uint64_t* __restrict__ entropy,
 	const tableStruct* __restrict__ tables_legacy,
 	const tableStruct* __restrict__ tables_segwit,
+	const tableStruct* __restrict__ tables_native_segwit,
 	retStruct* __restrict__ ret
 )
 
@@ -3511,7 +3566,7 @@ __global__ void gl_bruteforce_mnemonic(
 	sha512((uint64_t*)ipad, 192, (uint64_t*)&opad[128 / 4]);
 	sha512((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
 
-	key_to_hash160((extended_private_key_t*)&ipad[128 / 4], tables_legacy, tables_segwit, (uint32_t*)mnemonic, ret);
+	key_to_hash160((extended_private_key_t*)&ipad[128 / 4], tables_legacy, tables_segwit, tables_native_segwit, (uint32_t*)mnemonic, ret);
 	//__syncthreads();
 }
 
@@ -3520,6 +3575,7 @@ __global__ void gl_bruteforce_mnemonic_for_save(
 	const uint64_t* __restrict__ entropy,
 	const tableStruct* __restrict__ tables_legacy,
 	const tableStruct* __restrict__ tables_segwit,
+	const tableStruct* __restrict__ tables_native_segwit,
 	retStruct* __restrict__ ret,
 	uint8_t* __restrict__ mnemonic_ret,
 	uint32_t* __restrict__ hash160_ret
@@ -3532,7 +3588,7 @@ __global__ void gl_bruteforce_mnemonic_for_save(
 	uint32_t ipad[256 / 4];
 	uint32_t opad[256 / 4];
 	uint32_t seed[64 / 4] = { 0 };
-	uint32_t hash[(20 / 4) * NUM_ALL_CHILDS];
+	//uint32_t hash[(20 / 4) * NUM_ALL_CHILDS];
 	int_to_mnemonic(entropy[0] * (idx + 1), entropy[1] * (idx + 1), mnemonic);
 
 	for (int x = 0; x < 120 / 4; x++) {
@@ -3577,12 +3633,12 @@ __global__ void gl_bruteforce_mnemonic_for_save(
 	sha512((uint64_t*)ipad, 192, (uint64_t*)&opad[128 / 4]);
 	sha512((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
 
-	key_to_hash160_for_save((extended_private_key_t*)&ipad[128 / 4], tables_legacy, tables_segwit, (uint32_t*)mnemonic, ret, hash);
+	key_to_hash160_for_save((extended_private_key_t*)&ipad[128 / 4], tables_legacy, tables_segwit, tables_native_segwit, (uint32_t*)mnemonic, ret, &hash160_ret[idx * (dev_num_paths[0] * dev_num_child[0] * 5)]);
 
-	for (int i = 0; i < (NUM_ALL_CHILDS * 5); i++)
-	{
-		hash160_ret[idx * (NUM_ALL_CHILDS * 5) + i] = hash[i];
-	}
+	//for (int i = 0; i < (NUM_ALL_CHILDS * 5); i++)
+	//{
+	//	hash160_ret[idx * (NUM_ALL_CHILDS * 5) + i] = hash[i];
+	//}
 
 	for (int i = 0; i < SIZE_MNEMONIC_FRAME; i++)
 	{

@@ -1,8 +1,8 @@
 ﻿/**
   ******************************************************************************
   * @author		Anton Houzich
-  * @version	V1.0.0
-  * @date		20-March-2023
+  * @version	V1.2.0
+  * @date		16-April-2023
   * @mail		houzich_anton@mail.ru
   * discussion  https://t.me/BRUTE_FORCE_CRYPTO_WALLET
   ******************************************************************************
@@ -59,10 +59,10 @@ int Generate_Mnemonic(void)
 	devicesInfo();
 	// Choose which GPU to run on, change this on a multi-GPU system.
 	uint32_t num_device = 0;
-#ifndef GENERATE_INFINITY
+#ifndef TEST_MODE
 	std::cout << "\n\nEnter number of device: ";
 	std::cin >> num_device;
-#endif //GENERATE_INFINITY
+#endif //TEST_MODE
 	cudaStatus = cudaSetDevice(num_device);
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
@@ -70,13 +70,18 @@ int Generate_Mnemonic(void)
 	}
 
 	size_t num_wallets_gpu = Config.cuda_grid * Config.cuda_block;
+	if (num_wallets_gpu < NUM_PACKETS_SAVE_IN_FILE)
+	{
+		std::cerr << "Error num_wallets_gpu < NUM_PACKETS_SAVE_IN_FILE!" << std::endl;
+		return -1;
+	}
 	//18,446,744,073,709,551,615
 	size_t number_of_addresses = 0;
 	size_t count_save_data_in_file = 0;
 	int num_bytes = 0;
-
+	int err;
 	std::cout << "\nNUM WALLETS IN PACKET GPU: " << tools::formatWithCommas(num_wallets_gpu) << std::endl << std::endl;
-#ifndef GENERATE_INFINITY
+#ifndef TEST_MODE
 	std::cout << "Max value: 18,000,000,000,000,000,000 (18000000000000000000)" << std::endl;
 	std::cout << "Enter number of generate mnemonic: ";
 	std::cin >> number_of_addresses;
@@ -96,38 +101,47 @@ int Generate_Mnemonic(void)
 
 #else
 	//number_of_addresses = 18 000 000 000 000 000 000;
-	number_of_addresses = ((((num_wallets_gpu * 10) - 1) / (num_wallets_gpu)+1) * (num_wallets_gpu));
+	number_of_addresses = ((((num_wallets_gpu * 1) - 1) / (num_wallets_gpu)+1) * (num_wallets_gpu));
 	//bip44_test_str = "";
-	num_bytes = 0;
-	count_save_data_in_file = 0;
-#endif //GENERATE_INFINITY
+	num_bytes = 5;
+	count_save_data_in_file = 2;
+#endif //TEST_MODE
 
 	data_class* Data = new data_class();
 	stride_class* Stride = new stride_class(Data);
 	std::cout << "READ TABLES! WAIT..." << std::endl;
 	tools::clearFiles();
-#ifdef GENERATE_SEGWIT
-	int err = tools::readAllTables(Board->host.tables_segwit, Config.folder_database_segwit, "");
-	if (err == -1) {
-		std::cout << "Error readAllTables segwit!" << std::endl;
-		goto Error;
-	}
-#elif defined (GENERATE_LEGACY_AND_SEGWIT)
-	int err = tools::readAllTables(Data->host.tables_legacy, Config.folder_database_legacy, "");
+	if((Config.generate_path[0] != 0) || (Config.generate_path[1] != 0) || (Config.generate_path[2] != 0) || (Config.generate_path[3] != 0) || (Config.generate_path[4] != 0)
+		|| (Config.generate_path[5] != 0))
+	{
+		std::cout << "READ TABLES LEGACY(BIP32, BIP44)..." << std::endl;
+	err = tools::readAllTables(Data->host.tables_legacy, Config.folder_tables_legacy, "");
 	if (err == -1) {
 		std::cout << "Error readAllTables legacy!" << std::endl;
 		goto Error;
 	}
-	err = tools::readAllTables(Data->host.tables_segwit, Config.folder_database_segwit, "");
-	if (err == -1) {
-		std::cout << "Error readAllTables segwit!" << std::endl;
-		goto Error;
 	}
-#endif //GENERATE_BIP32
-
+	if ((Config.generate_path[6] != 0) || (Config.generate_path[7] != 0))
+	{
+		std::cout << "READ TABLES SEGWIT(BIP49)..." << std::endl;
+		err = tools::readAllTables(Data->host.tables_segwit, Config.folder_tables_segwit, "");
+		if (err == -1) {
+			std::cout << "Error readAllTables segwit!" << std::endl;
+			goto Error;
+		}
+	}
+	if ((Config.generate_path[8] != 0) || (Config.generate_path[9] != 0))
+	{
+		std::cout << "READ TABLES NATIVE SEGWIT(BIP84)..." << std::endl;
+		err = tools::readAllTables(Data->host.tables_native_segwit, Config.folder_tables_native_segwit, "");
+		if (err == -1) {
+			std::cout << "Error readAllTables native segwit!" << std::endl;
+			goto Error;
+		}
+	}
 	std::cout << std::endl << std::endl;
 
-	if (Data->malloc(Config.cuda_grid, Config.cuda_block, count_save_data_in_file == 0 ? false : true) != 0) {
+	if (Data->malloc(Config.cuda_grid, Config.cuda_block, Config.num_paths, Config.num_child_addresses, count_save_data_in_file == 0 ? false : true) != 0) {
 		std::cout << "Error Data->malloc()!" << std::endl;
 		goto Error;
 	}
@@ -141,21 +155,40 @@ int Generate_Mnemonic(void)
 
 	std::cout << "START GENERATE ADDRESSES!" << std::endl;
 	std::cout << "PATH: " << std::endl;
-	std::cout << "m/0/0.." << (NUM_CHILDS - 1) << ", m/1/0.." << (NUM_CHILDS - 1) << std::endl;
-	std::cout << "m/0/0/0.." << (NUM_CHILDS - 1) << ", m/0/1/0.." << (NUM_CHILDS - 1) << std::endl;
-	std::cout << "m/44'/0'/0'/0/0.." << (NUM_CHILDS - 1) << ", m/44'/0'/0'/1/0.." << (NUM_CHILDS - 1) << std::endl;
-	std::cout << "m/84'/0'/0'/0/0.." << (NUM_CHILDS - 1) << ", m/84'/0'/0'/1/0.." << (NUM_CHILDS - 1) << std::endl;
-	std::cout << "\nGENERATE " << tools::formatWithCommas(number_of_addresses) << " MNEMONICS. " << tools::formatWithCommas(number_of_addresses * NUM_ALL_CHILDS) << " ADDRESSES. MNEMONICS IN ROUNDS " << tools::formatWithCommas(Data->wallets_in_round_gpu) << ". WAIT...\n\n";
+	if (Config.generate_path[0] != 0) std::cout << "m/0/0.." << (Config.num_child_addresses - 1) << std::endl;
+	if (Config.generate_path[1] != 0) std::cout << "m/1/0.." << (Config.num_child_addresses - 1) << std::endl;
+	if (Config.generate_path[2] != 0) std::cout << "m/0/0/0.." << (Config.num_child_addresses - 1) << std::endl;
+	if (Config.generate_path[3] != 0) std::cout << "m/0/1/0.." << (Config.num_child_addresses - 1) << std::endl;
+	if (Config.generate_path[4] != 0) std::cout << "m/44'/0'/0'/0/0.." << (Config.num_child_addresses - 1) << std::endl;
+	if (Config.generate_path[5] != 0) std::cout << "m/44'/0'/0'/1/0.." << (Config.num_child_addresses - 1) << std::endl;
+	if (Config.generate_path[6] != 0) std::cout << "m/49'/0'/0'/0/0.." << (Config.num_child_addresses - 1) << std::endl;
+	if (Config.generate_path[7] != 0) std::cout << "m/49'/0'/0'/1/0.." << (Config.num_child_addresses - 1) << std::endl;
+	if (Config.generate_path[8] != 0) std::cout << "m/84'/0'/0'/0/0.." << (Config.num_child_addresses - 1) << std::endl;
+	if (Config.generate_path[9] != 0) std::cout << "m/84'/0'/0'/1/0.." << (Config.num_child_addresses - 1) << std::endl;
+	std::cout << "\nGENERATE " << tools::formatWithCommas(number_of_addresses) << " MNEMONICS. " << tools::formatWithCommas(number_of_addresses * Data->num_all_childs) << " ADDRESSES. MNEMONICS IN ROUNDS " << tools::formatWithCommas(Data->wallets_in_round_gpu) << ". WAIT...\n\n";
 
 	tools::generateRandomUint64Buffer(Data->host.entropy, Data->size_entropy_buf / (sizeof(uint64_t)));
 
-	if (cudaMemcpyToSymbol(num_bytes_find, &num_bytes, 4, 0, cudaMemcpyHostToDevice) != cudaSuccess)
+	if (cudaMemcpyToSymbol(dev_num_bytes_find, &num_bytes, 4, 0, cudaMemcpyHostToDevice) != cudaSuccess)
 	{
 		fprintf(stderr, "cudaMemcpyToSymbol to num_bytes_find failed!");
 		goto Error;
 	}
-
-
+	if (cudaMemcpyToSymbol(dev_generate_path, &Config.generate_path, sizeof(Config.generate_path), 0, cudaMemcpyHostToDevice) != cudaSuccess)
+	{
+		fprintf(stderr, "cudaMemcpyToSymbol to dev_generate_path failed!");
+		goto Error;
+	}
+	if (cudaMemcpyToSymbol(dev_num_child, &Config.num_child_addresses, 4, 0, cudaMemcpyHostToDevice) != cudaSuccess)
+	{
+		fprintf(stderr, "cudaMemcpyToSymbol to dev_num_child failed!");
+		goto Error;
+	}
+	if (cudaMemcpyToSymbol(dev_num_paths, &Config.num_paths, 4, 0, cudaMemcpyHostToDevice) != cudaSuccess)
+	{
+		fprintf(stderr, "cudaMemcpyToSymbol to dev_num_paths failed!");
+		goto Error;
+	}
 	static int start_save = 0;
 	for (uint64_t step = 0; step < number_of_addresses / (Data->wallets_in_round_gpu); step++)
 	{
@@ -193,7 +226,7 @@ int Generate_Mnemonic(void)
 
 		if (start_save < count_save_data_in_file) {
 			start_save++;
-			tools::saveResult((char*)Data->host.mnemonic, (uint8_t*)Data->host.hash160, Data->wallets_in_round_gpu);
+			tools::saveResult((char*)Data->host.mnemonic, (uint8_t*)Data->host.hash160, Data->wallets_in_round_gpu, Data->num_all_childs, Data->num_childs, Config.generate_path);
 		}
 
 		tools::checkResult(Data->host.ret);
@@ -201,7 +234,7 @@ int Generate_Mnemonic(void)
 		float delay;
 		tools::stop_time_and_calc(&delay);
 		std::cout << "\rSPEED: " << std::setw(8) << std::fixed << tools::formatWithCommas((float)Data->wallets_in_round_gpu / (delay / 1000.0f)) << " MNEMONICS/SECOND AND "
-			<< tools::formatWithCommas(((float)Data->wallets_in_round_gpu * NUM_ALL_CHILDS) / (delay / 1000.0f)) << " ADDRESSES/SECOND, ROUND: " << step;
+			<< tools::formatWithCommas(((float)Data->wallets_in_round_gpu * Data->num_all_childs) / (delay / 1000.0f)) << " ADDRESSES/SECOND, ROUND: " << step;
 
 	}
 	std::cout << "\n\nEND!" << std::endl;

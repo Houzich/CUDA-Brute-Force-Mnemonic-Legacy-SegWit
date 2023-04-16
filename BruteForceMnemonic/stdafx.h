@@ -1,36 +1,19 @@
 #pragma once
-
-
-
 //compute_86, sm_86
-
-//#define GENERATE_SEGWIT
-#define GENERATE_LEGACY_AND_SEGWIT
 
 /**
   ******************************************************************************
   * @author		Anton Houzich
-  * @version	V1.0.0
-  * @date		20-March-2023
+  * @version	V1.2.0
+  * @date		16-April-2023
   * @mail		houzich_anton@mail.ru
   * discussion  https://t.me/BRUTE_FORCE_CRYPTO_WALLET
   ******************************************************************************
   */
 
-#ifdef GENERATE_SEGWIT
-#define NUM_CHILDS					(5)
-#define NUM_ALL_CHILDS				(NUM_CHILDS*2)
-#elif defined (GENERATE_LEGACY_AND_SEGWIT)
-#define NUM_CHILDS					(20)
-#define NUM_ALL_CHILDS				(NUM_CHILDS*8)
-#endif //GENERATE_BIP32
 
 //#define _CRT_SECURE_NO_WARNINGS
-//#define GENERATE_INFINITY
-
-
-
-
+//#define TEST_MODE
 
 
 #define SIZE_MNEMONIC_FRAME					(128ULL)
@@ -42,7 +25,7 @@
 //#define USE_REVERSE_64
 #define USE_REVERSE_32
 
-
+#define NUM_PACKETS_SAVE_IN_FILE 8
 #define FILE_PATH_RESULT "Save_Addresses.csv"
 #define FILE_PATH_FOUND_ADDRESSES "Found_Addresses.csv"
 #define FILE_PATH_FOUND_BYTES "Found_Bytes.csv"
@@ -70,23 +53,21 @@ struct tableStruct {
 	unsigned int size;
 };
 #pragma pack(push, 1)
+struct foundStruct {
+	unsigned int mnemonic[SIZE32_MNEMONIC_FRAME];
+	unsigned int mnemonic_bytes[SIZE32_MNEMONIC_FRAME];
+	unsigned int hash160[SIZE32_HASH160_FRAME];
+	unsigned int hash160_bytes[SIZE32_HASH160_FRAME];
+	unsigned int hash160_bytes_from_table[SIZE32_HASH160_FRAME];
+	unsigned int found;
+	unsigned int found_bytes;
+	unsigned int path;
+	unsigned int child;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
 struct retStruct {
-	unsigned int mnemonic_legacy_found[SIZE32_MNEMONIC_FRAME];
-	unsigned int mnemonic_legacy_bytes_found[SIZE32_MNEMONIC_FRAME];
-	unsigned int mnemonic_segwit_found[SIZE32_MNEMONIC_FRAME];
-	unsigned int mnemonic_segwit_bytes_found[SIZE32_MNEMONIC_FRAME];
-
-	unsigned int hash160_legacy_found[SIZE32_HASH160_FRAME];
-	unsigned int hash160_legacy_bytes_found[SIZE32_HASH160_FRAME];
-	unsigned int hash160_legacy_bytes_from_table[SIZE32_HASH160_FRAME];
-
-	unsigned int hash160_segwit_found[SIZE32_HASH160_FRAME];
-	unsigned int hash160_segwit_bytes_found[SIZE32_HASH160_FRAME];
-	unsigned int hash160_segwit_bytes_from_table[SIZE32_HASH160_FRAME];
-
-	unsigned int found_legacy;
-	unsigned int found_legacy_bytes;
-	unsigned int found_segwit;
-	unsigned int found_segwit_bytes;
+	foundStruct f[3];
 };
 #pragma pack(pop)

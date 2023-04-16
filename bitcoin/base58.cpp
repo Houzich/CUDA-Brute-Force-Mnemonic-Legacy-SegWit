@@ -1,6 +1,4 @@
-// Copyright (c) 2014-2021 The Bitcoin Core developers
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 #include <base58.h>
 
 #include <hash.h>
@@ -163,3 +161,18 @@ bool DecodeBase58Check(const std::string& str, std::vector<unsigned char>& vchRe
     }
     return DecodeBase58Check(str.c_str(), vchRet, max_ret);
 }
+
+int EncodeHashBIP49(const uint8_t* hash160, std::string& addr)
+{
+     //std::vector<uint8_t> datastr(hash160, hash160 + 20);
+
+     //std::vector<unsigned char> v_hash160 = { 0x00, 0x14 };
+     //v_hash160.insert(v_hash160.end(), hash160, hash160 + 20);
+     //uint160 hash160temp = Hash160(v_hash160);
+
+     std::vector<unsigned char> v_hash160temp = {0x05};
+     v_hash160temp.insert(v_hash160temp.end(), hash160, hash160 + 20);
+     addr = EncodeBase58Check(v_hash160temp);
+    return 0;
+}
+
