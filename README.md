@@ -93,7 +93,7 @@
 
 Соответственно мнемоника и адрес который мы нашли. И информация добавиться в файл Found_Addresses.csv.
 В файле строки хранятся в виде:</br>
-*chicken jewel keen arm artefact disorder gravity claim sick female verb faint, address path m/49'/0'/0'/0/2, 1Q4Qgk9pftrXRna1LETwcHXuoKJVrKSfm, Sun Apr  2 12:51:42 2023*
+*chicken jewel keen arm artefact disorder gravity claim sick female verb faint, address path m/49'/0'/0'/0/2, 32AZej6V3qhSceTqTp6hmhrUCYaEBHRTP4, Sun Apr  2 12:51:42 2023*
 
 ## Файл BruteForceMnemonicBitcoinV12.exe находится в папке exe
 
