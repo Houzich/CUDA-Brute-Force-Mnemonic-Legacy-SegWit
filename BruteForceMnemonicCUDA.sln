@@ -13,7 +13,6 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "exe", "exe", "{D6475FA8-11DF-4BDD-847C-C97CA87C8CD4}"
 	ProjectSection(SolutionItems) = preProject
 		exe\BruteForceMnemonicBitcoinV10.exe = exe\BruteForceMnemonicBitcoinV10.exe
-		exe\BruteForceMnemonicBitcoinV11.exe = exe\BruteForceMnemonicBitcoinV11.exe
 		exe\config.cfg = exe\config.cfg
 	EndProjectSection
 EndProject

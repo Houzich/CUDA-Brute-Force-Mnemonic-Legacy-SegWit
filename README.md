@@ -82,8 +82,7 @@
 В файле строки хранятся в виде:</br>
 *chicken jewel keen arm artefact disorder gravity claim sick female verb faint, 1Q4Qgk9pftrXRna1LETwcHXuoKJVrKSfm,Sun Apr  2 12:51:42 2023*
 
-## Файл BruteForceMnemonicBitcoinV10.exe находится в папке exe (патчи 0..4)
-## Файл BruteForceMnemonicBitcoinV11.exe находится в папке exe (патчи 0..19)
+## Файл BruteForceMnemonicBitcoinV11.exe находится в папке exe (childs 0..19)
 
 
 

@@ -3033,10 +3033,17 @@ int Find_Hash_In_Table(const uint32_t* hash, const tableStruct table, const uint
 			if (cmp == 0)
 			{
 				found = 1;
-				for (int i = 0; i < 5; i++) fnd_ret->hash160[i] = hash[i];
-				for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) fnd_ret->mnemonic[i] = mnemonic[i];
-				fnd_ret->path = path;
-				fnd_ret->child = child;
+				if (isLegacy) {
+					for (int i = 0; i < 5; i++) ret->hash160_legacy_found[i] = hash[i];
+					for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) ret->mnemonic_segwit_found[i] = mnemonic[i];
+					ret->found_legacy = 1;
+				}
+				else
+				{
+					for (int i = 0; i < 5; i++) ret->hash160_segwit_found[i] = hash[i];
+					for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) ret->mnemonic_segwit_found[i] = mnemonic[i];
+					ret->found_segwit = 1;
+				}
 			}
 			break;
 		}
