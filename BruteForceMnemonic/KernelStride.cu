@@ -1,8 +1,8 @@
 ﻿/**
   ******************************************************************************
   * @author		Anton Houzich
-  * @version	V1.2.0
-  * @date		16-April-2023
+  * @version	V2.0.0
+  * @date		28-April-2023
   * @mail		houzich_anton@mail.ru
   * discussion  https://t.me/BRUTE_FORCE_CRYPTO_WALLET
   ******************************************************************************
@@ -96,22 +96,36 @@ int stride_class::init()
 			std::cout << "cudaMemcpy to Board->dev.table_legacy[i] failed! i = " << i << std::endl;
 			return -1;
 		}
-		const size_t percentDone = (i * 100 / 256) / 2;
+		const size_t percentDone = (i * 100 / 256) / 3;
 		std::cout << "  " << percentDone << "%\r";
 	}
 	if (cudaMemcpy(dt->dev.dev_tables_legacy, dt->dev.tables_legacy, 256 * sizeof(tableStruct), cudaMemcpyHostToDevice) != cudaSuccess) { fprintf(stderr, "cudaMemcpyAsync to Board->dev.table_legacy failed!"); return -1; }
 
 	for (int i = 0; i < 256; i++)
 	{
-		if (cudaMemcpy((void*)dt->dev.tables_native_segwit[i].table, dt->host.tables_native_segwit[i].table, dt->host.tables_native_segwit[i].size, cudaMemcpyHostToDevice) != cudaSuccess)
+		if (cudaMemcpy((void*)dt->dev.tables_segwit[i].table, dt->host.tables_segwit[i].table, dt->host.tables_segwit[i].size, cudaMemcpyHostToDevice) != cudaSuccess)
 		{
 			std::cout << "cudaMemcpy to Board->dev.table_segwit[i] failed! i = " << i << std::endl;
 			return -1;
 		}
-		const size_t percentDone = 50 + (i * 100 / 256) / 2;
+		const size_t percentDone = 33 + (i * 100 / 256) / 3;
 		std::cout << "  " << percentDone << "%\r";
 	}
-	if (cudaMemcpy(dt->dev.dev_tables_native_segwit, dt->dev.tables_native_segwit, 256 * sizeof(tableStruct), cudaMemcpyHostToDevice) != cudaSuccess) { fprintf(stderr, "cudaMemcpyAsync to Board->dev.table_segwit failed!"); return -1; }
+	if (cudaMemcpy(dt->dev.dev_tables_segwit, dt->dev.tables_segwit, 256 * sizeof(tableStruct), cudaMemcpyHostToDevice) != cudaSuccess) { fprintf(stderr, "cudaMemcpyAsync to Board->dev.table_segwit failed!"); return -1; }
+
+
+	for (int i = 0; i < 256; i++)
+	{
+		if (cudaMemcpy((void*)dt->dev.tables_native_segwit[i].table, dt->host.tables_native_segwit[i].table, dt->host.tables_native_segwit[i].size, cudaMemcpyHostToDevice) != cudaSuccess)
+		{
+			std::cout << "cudaMemcpy to Board->dev.tables_native_segwit[i] failed! i = " << i << std::endl;
+			return -1;
+		}
+		const size_t percentDone = 66 + (i * 100 / 256) / 3;
+		std::cout << "  " << percentDone << "%\r";
+	}
+	std::cout << "  100%\r";
+	if (cudaMemcpy(dt->dev.dev_tables_native_segwit, dt->dev.tables_native_segwit, 256 * sizeof(tableStruct), cudaMemcpyHostToDevice) != cudaSuccess) { fprintf(stderr, "cudaMemcpyAsync to Board->dev.tables_native_segwit failed!"); return -1; }
 	if (deviceSynchronize("init") != cudaSuccess) return -1;
 	return 0;
 }

@@ -1,8 +1,8 @@
 ﻿/**
   ******************************************************************************
   * @author		Anton Houzich
-  * @version	V1.2.0
-  * @date		16-April-2023
+  * @version	V2.0.0
+  * @date		28-April-2023
   * @mail		houzich_anton@mail.ru
   * discussion  https://t.me/BRUTE_FORCE_CRYPTO_WALLET
   ******************************************************************************
@@ -375,6 +375,178 @@ static void sha512(uint64_t* input, const uint32_t length, uint64_t* hash) {
 }
 
 __device__
+static void md_pad_128_swap(uint64_t* msg, const long msgLen_bytes) {
+	uint32_t padLongIndex, overhang;
+	padLongIndex = ((uint32_t)msgLen_bytes) / 8; // 24
+	overhang = (((uint32_t)msgLen_bytes) - padLongIndex * 8); // 0
+	msg[padLongIndex] &= SWAP512(maskLong[overhang]); // msg[24] = msg[24] & 0 -> 0's out this byte
+	msg[padLongIndex] |= SWAP512(padLong[overhang]); // msg[24] = msg[24] | 0x1UL << 7 -> sets it to 0x1UL << 7
+	msg[padLongIndex + 1] = 0; // msg[25] = 0
+	msg[padLongIndex + 2] = 0; // msg[26] = 0
+	uint32_t i = 0;
+
+	// 27, 28, 29, 30, 31 = 0
+	for (i = padLongIndex + 3; i < 32; i++) {
+		msg[i] = 0;
+	}
+	// i = 32
+	// int nBlocks = i / 16; // nBlocks = 2
+	msg[i - 2] = 0; // msg[30] = 0; already did this in loop..
+	msg[i - 1] = msgLen_bytes * 8; // msg[31] = SWAP512(1536)
+	//return nBlocks; // 2
+	//return 2; // 2
+};
+
+__device__
+static void sha512_swap(uint64_t* input, const uint32_t length, uint64_t* hash) {
+	md_pad_128_swap(input, (const uint64_t)length);
+	uint64_t W[80];
+	uint64_t State[8];
+	//for (int i = 16; i < 80; i++) {
+	//	W[i] = 0;
+	//}
+	State[0] = 0x6a09e667f3bcc908UL;
+	State[1] = 0xbb67ae8584caa73bUL;
+	State[2] = 0x3c6ef372fe94f82bUL;
+	State[3] = 0xa54ff53a5f1d36f1UL;
+	State[4] = 0x510e527fade682d1UL;
+	State[5] = 0x9b05688c2b3e6c1fUL;
+	State[6] = 0x1f83d9abfb41bd6bUL;
+	State[7] = 0x5be0cd19137e2179UL;
+	uint64_t a, b, c, d, e, f, g, h;
+	for (int block_i = 0; block_i < 2; block_i++) {
+
+		W[0] = input[0];
+		W[1] = input[1];
+		W[2] = input[2];
+		W[3] = input[3];
+		W[4] = input[4];
+		W[5] = input[5];
+		W[6] = input[6];
+		W[7] = input[7];
+		W[8] = input[8];
+		W[9] = input[9];
+		W[10] = input[10];
+		W[11] = input[11];
+		W[12] = input[12];
+		W[13] = input[13];
+		W[14] = input[14];
+		W[15] = input[15];
+
+		//SWAP512_16D(input, W);
+#pragma unroll
+		for (int i = 16; i < 80; i++) {
+			W[i] = W[i - 16] + little_s0(W[i - 15]) + W[i - 7] + little_s1(W[i - 2]);
+		}
+		a = State[0];
+		b = State[1];
+		c = State[2];
+		d = State[3];
+		e = State[4];
+		f = State[5];
+		g = State[6];
+		h = State[7];
+#pragma unroll
+		for (int i = 0; i < 80; i += 16) {
+			ROUND_STEP_SHA512(i)
+		}
+		State[0] += a;
+		State[1] += b;
+		State[2] += c;
+		State[3] += d;
+		State[4] += e;
+		State[5] += f;
+		State[6] += g;
+		State[7] += h;
+		input += 16;
+	}
+	hash[0] = State[0];
+	hash[1] = State[1];
+	hash[2] = State[2];
+	hash[3] = State[3];
+	hash[4] = State[4];
+	hash[5] = State[5];
+	hash[6] = State[6];
+	hash[7] = State[7];
+	return;
+}
+
+__device__
+static void sha512_swap_3(uint64_t* input, const uint32_t length, uint64_t* hash) {
+	md_pad_128_swap(input, (const uint64_t)length);
+	uint64_t W[80];
+	uint64_t State[8];
+	//for (int i = 16; i < 80; i++) {
+	//	W[i] = 0;
+	//}
+	State[0] = 0x6a09e667f3bcc908UL;
+	State[1] = 0xbb67ae8584caa73bUL;
+	State[2] = 0x3c6ef372fe94f82bUL;
+	State[3] = 0xa54ff53a5f1d36f1UL;
+	State[4] = 0x510e527fade682d1UL;
+	State[5] = 0x9b05688c2b3e6c1fUL;
+	State[6] = 0x1f83d9abfb41bd6bUL;
+	State[7] = 0x5be0cd19137e2179UL;
+	uint64_t a, b, c, d, e, f, g, h;
+	for (int block_i = 0; block_i < 4; block_i++) {
+
+		W[0] = input[0];
+		W[1] = input[1];
+		W[2] = input[2];
+		W[3] = input[3];
+		W[4] = input[4];
+		W[5] = input[5];
+		W[6] = input[6];
+		W[7] = input[7];
+		W[8] = input[8];
+		W[9] = input[9];
+		W[10] = input[10];
+		W[11] = input[11];
+		W[12] = input[12];
+		W[13] = input[13];
+		W[14] = input[14];
+		W[15] = input[15];
+
+		//SWAP512_16D(input, W);
+#pragma unroll
+		for (int i = 16; i < 80; i++) {
+			W[i] = W[i - 16] + little_s0(W[i - 15]) + W[i - 7] + little_s1(W[i - 2]);
+		}
+		a = State[0];
+		b = State[1];
+		c = State[2];
+		d = State[3];
+		e = State[4];
+		f = State[5];
+		g = State[6];
+		h = State[7];
+#pragma unroll
+		for (int i = 0; i < 80; i += 16) {
+			ROUND_STEP_SHA512(i)
+		}
+		State[0] += a;
+		State[1] += b;
+		State[2] += c;
+		State[3] += d;
+		State[4] += e;
+		State[5] += f;
+		State[6] += g;
+		State[7] += h;
+		input += 16;
+	}
+	hash[0] = State[0];
+	hash[1] = State[1];
+	hash[2] = State[2];
+	hash[3] = State[3];
+	hash[4] = State[4];
+	hash[5] = State[5];
+	hash[6] = State[6];
+	hash[7] = State[7];
+	return;
+}
+
+
+__device__
 static void sha256(const uint32_t* pass, int pass_len, uint32_t* hash) {
 	int plen = pass_len / 4;
 	if (mod(pass_len, 4)) plen++;
@@ -458,16 +630,16 @@ static void sha256(const uint32_t* pass, int pass_len, uint32_t* hash) {
 	return;
 }
 
-//#undef F0
-//#undef F1
-//#undef S0
-//#undef S1
-//#undef S2
-//#undef S3
-//
-//#undef mod
-//#undef shr32
-//#undef rotl32
+#undef F0
+#undef F1
+#undef S0
+#undef S1
+#undef S2
+#undef S3
+
+#undef mod
+#undef shr32
+#undef rotl32
 
 
 
@@ -2738,6 +2910,9 @@ void ripemd160_process(RIPEMD160_CTX* ctx, const uint8_t data[64])
 	ctx->state[4] = ctx->state[0] + B + Cp;
 	ctx->state[0] = C;
 }
+
+
+
 __device__
 void ripemd160_Update(RIPEMD160_CTX* ctx, const uint8_t* input, uint32_t ilen)
 {
@@ -2860,11 +3035,6 @@ void calc_hash160_bip49(extended_public_key_t* pub, uint32_t* hash160_bytes) {
 	serialized_pub_key[1] = 0x14;
 	for (int i = 0; i < 20; i++)
 		serialized_pub_key[i + 2] = sha256_result[i];
-	////*(uint32_t*)&serialized_pub_key[2] = hash160_bytes[0];
-	////*(uint32_t*)&serialized_pub_key[6] = hash160_bytes[1];
-	////*(uint32_t*)&serialized_pub_key[10] = hash160_bytes[2];
-	////*(uint32_t*)&serialized_pub_key[14] = hash160_bytes[3];
-	////*(uint32_t*)&serialized_pub_key[18] = hash160_bytes[4];
 	serialized_pub_key[22] = 0;
 	serialized_pub_key[23] = 0;
 	sha256((const uint32_t*)serialized_pub_key, 22, (uint32_t*)&sha256_result);
@@ -2878,8 +3048,9 @@ void calc_hash160_bip49(extended_public_key_t* pub, uint32_t* hash160_bytes) {
 //#define SHA512_SHARED
 
 __constant__ uint8_t salt[12] = { 109, 110, 101, 109, 111, 110, 105, 99, 0, 0, 0, 1 };
+__constant__ uint8_t salt_swap[16] = { 99, 105, 110, 111, 109, 101, 110, 109, 0, 0, 0, 0, 1, 0, 0, 0};
 __constant__ uint8_t key[12] = { 0x42, 0x69, 0x74, 0x63, 0x6f, 0x69, 0x6e, 0x20, 0x73, 0x65, 0x65, 0x64 };
-
+__constant__ uint8_t key_swap[16] = { 0x20, 0x6e, 0x69, 0x6f, 0x63, 0x74, 0x69, 0x42, 0, 0, 0, 0, 0x64, 0x65, 0x65, 0x73 };
 #define MEMCPY32(x,y,t) for (int i = 0; i < t; i++) *(uint32_t*)((uint32_t*)x + i) = *(uint32_t*)((uint32_t*)y + i);
 #define MEMCPY8(x,y,t) for (int i = 0; i < t; i++) *(uint8_t*)((uint8_t*)x + i) = *(uint8_t*)((uint8_t*)y + i);
 
@@ -2889,52 +3060,116 @@ __constant__ uint8_t words[2048][9] = { "abandon", "ability", "able", "about", "
 __constant__ uint8_t word_lengths[2048] = { 7,7,4,5,5,6,6,8,6,5,6,8,7,6,7,4,8,7,6,3,6,5,7,6,5,3,6,7,6,5,5,7,6,7,6,6,6,5,3,5,5,5,3,3,7,5,5,5,7,5,5,3,5,5,6,5,5,7,4,5,6,7,7,5,6,6,7,6,7,5,5,5,6,5,8,6,7,6,7,7,7,3,5,7,6,5,7,5,4,6,4,5,5,3,5,5,4,6,7,6,6,5,3,8,6,7,3,6,7,5,6,6,6,7,4,6,6,8,7,7,5,6,4,6,4,6,7,7,5,5,5,4,7,5,7,4,4,8,5,5,3,7,7,4,6,6,6,3,6,7,6,4,5,6,6,5,4,6,7,6,4,6,5,6,6,7,5,4,5,7,4,6,6,7,6,7,3,4,4,7,4,5,6,5,5,5,7,5,5,5,5,5,7,6,4,4,5,5,4,4,4,4,4,5,4,5,6,6,6,4,6,6,3,3,7,5,5,5,5,5,6,5,6,5,6,5,5,8,6,6,5,7,5,5,6,5,6,7,5,4,4,6,6,6,6,6,5,3,8,4,6,5,4,7,5,5,6,4,4,4,4,6,4,3,5,6,5,6,5,6,6,7,7,7,3,6,4,5,6,5,4,4,4,6,6,6,3,7,5,8,6,6,5,7,4,7,6,6,6,7,6,7,5,5,8,6,5,7,6,5,4,5,5,6,4,6,5,7,5,5,7,6,6,7,7,5,5,5,8,6,7,4,5,5,4,7,4,4,5,5,6,5,6,5,5,6,4,5,4,5,5,5,5,4,5,7,6,5,5,7,4,6,4,4,7,5,6,7,4,7,5,6,7,7,7,7,8,7,8,7,8,4,4,6,4,5,4,4,7,4,6,5,7,6,6,6,5,6,5,6,5,4,5,5,6,5,5,5,6,5,4,7,5,5,6,4,5,6,5,7,5,6,7,6,5,3,7,4,7,3,8,7,7,7,5,7,6,4,5,3,6,4,5,6,6,4,8,4,3,4,6,6,6,8,6,7,8,8,4,7,6,4,6,5,7,6,6,6,7,4,6,6,7,5,6,6,8,6,6,4,7,7,6,6,7,6,6,7,4,7,5,4,6,4,6,7,7,7,6,8,6,4,8,8,7,4,7,8,7,8,6,6,7,5,6,8,3,4,7,6,6,6,5,4,4,6,4,5,6,5,7,4,5,5,5,5,5,4,5,4,4,3,4,4,4,6,4,5,4,5,7,5,5,5,4,5,6,4,4,4,7,7,4,4,7,6,3,5,6,5,5,8,7,7,8,8,5,4,6,6,7,6,7,6,7,5,6,5,3,7,7,5,6,7,6,6,7,5,6,6,6,6,6,5,6,5,8,7,5,5,3,5,5,7,5,5,6,5,7,6,7,6,8,4,5,6,5,7,6,8,6,7,6,7,8,7,7,5,5,4,6,6,6,6,7,6,7,6,5,3,7,6,4,7,4,5,5,4,5,4,6,6,3,5,7,4,7,3,5,6,7,5,8,7,8,7,3,4,4,6,5,8,5,5,3,5,7,5,6,4,4,6,5,4,4,6,6,4,4,5,6,4,3,7,3,4,5,5,4,6,4,6,4,5,5,5,6,5,5,3,4,5,3,4,4,6,4,4,5,6,6,4,7,5,7,6,6,5,3,7,5,8,5,6,6,4,5,5,5,6,5,4,3,5,7,4,6,6,4,6,7,4,3,6,7,6,6,7,3,4,4,6,5,4,7,6,5,6,7,7,5,5,4,6,6,7,4,4,4,6,5,5,5,7,5,5,5,5,4,4,4,7,4,4,5,7,6,6,6,4,4,5,5,5,5,5,7,5,5,4,5,4,7,5,4,5,5,5,5,5,6,3,3,5,4,4,6,7,4,5,6,4,5,7,3,4,4,6,4,6,5,5,8,6,5,6,4,3,4,6,4,4,4,3,4,7,5,6,4,4,7,6,4,5,4,4,4,6,5,8,4,5,4,5,3,4,5,6,5,7,6,4,6,5,4,7,6,3,4,4,8,4,6,3,7,7,5,7,7,6,6,6,7,7,4,7,6,8,5,8,6,8,6,7,6,6,7,7,6,6,6,5,8,5,7,6,6,6,7,7,6,8,4,6,6,7,4,6,7,5,4,5,6,6,3,4,7,5,5,5,3,4,4,7,3,5,5,4,6,6,4,4,8,4,4,7,3,4,3,6,4,7,4,3,7,4,6,4,4,5,5,4,3,5,5,6,4,4,4,8,6,5,5,5,5,7,4,3,4,7,5,4,6,4,5,5,7,4,3,5,6,7,5,4,6,4,7,6,6,5,4,7,7,7,4,4,5,4,4,5,4,4,6,4,6,4,6,4,4,7,5,4,5,6,4,4,7,4,6,4,5,5,7,6,5,5,6,6,7,3,5,6,4,4,4,5,4,6,3,6,7,5,7,6,5,6,5,6,6,6,8,4,4,6,5,8,4,6,6,7,4,6,4,7,4,8,5,5,6,4,6,6,7,4,5,5,5,5,4,7,5,6,6,8,4,7,5,4,7,5,6,7,6,6,4,7,3,5,7,6,5,6,3,6,7,6,7,5,4,5,4,7,8,6,6,5,8,5,4,5,4,6,4,8,6,6,8,5,4,6,6,7,4,5,4,6,6,5,6,6,4,4,4,8,7,7,6,5,4,3,7,7,5,4,4,4,5,5,5,7,6,6,5,4,7,4,7,6,5,3,7,6,5,3,3,4,6,6,7,7,6,7,5,5,7,4,3,5,6,5,3,4,3,5,7,4,4,3,5,6,4,4,5,7,6,6,6,5,7,5,8,5,6,8,6,7,5,7,5,6,7,4,4,4,3,5,6,6,5,4,6,4,4,6,4,5,5,5,7,5,6,6,4,6,5,4,5,4,7,6,7,5,4,7,5,6,4,7,7,3,7,6,6,6,7,6,6,3,5,5,6,8,5,6,7,5,3,6,4,5,4,7,4,6,5,5,5,6,7,5,4,6,6,5,4,6,4,4,5,5,4,6,4,4,4,7,7,8,8,4,6,7,7,6,5,8,6,7,6,7,7,6,7,5,5,7,5,8,6,7,5,7,7,7,6,7,7,7,5,8,7,7,5,7,6,7,4,4,5,7,5,5,5,8,6,7,5,4,3,6,7,7,7,7,8,5,4,4,5,6,7,4,4,5,5,4,4,5,5,4,5,6,5,5,4,4,6,5,3,5,5,4,6,5,7,6,7,6,6,7,6,7,6,6,6,6,7,6,5,7,6,4,6,8,6,6,6,5,4,6,6,6,7,6,7,6,8,6,8,8,6,6,7,6,7,6,6,6,6,3,6,4,4,4,5,5,5,5,4,4,6,4,6,5,5,4,5,5,6,6,7,4,6,4,4,6,5,5,5,5,6,4,3,4,3,6,5,3,6,7,4,4,5,6,5,4,6,4,6,4,7,7,5,7,4,3,5,4,5,7,5,6,6,7,8,8,5,5,6,6,5,3,6,6,4,6,6,7,8,4,4,7,6,4,7,6,5,8,6,7,7,6,5,5,6,5,7,5,4,5,7,6,5,5,4,6,5,4,5,4,5,8,5,6,5,7,3,7,4,4,5,5,4,6,4,5,6,7,6,5,4,5,6,7,3,4,5,6,3,5,4,5,5,4,4,5,7,5,5,6,4,6,4,4,5,5,5,5,5,6,5,5,4,5,4,4,6,6,4,4,4,5,7,5,8,5,7,4,4,5,4,4,5,4,6,5,5,5,7,5,5,7,5,5,5,6,5,6,5,4,6,5,5,7,5,5,4,5,6,6,3,6,7,8,6,7,5,5,6,5,5,5,5,4,5,5,4,4,6,5,5,5,5,7,5,5,5,5,8,6,6,6,8,7,5,7,5,7,6,6,7,4,6,6,5,7,4,6,3,5,6,5,6,7,4,7,5,8,8,6,7,7,7,5,4,5,5,5,5,4,5,6,5,6,7,5,6,5,6,3,4,6,4,4,4,6,4,5,6,4,5,4,4,3,6,6,4,4,4,4,5,4,5,4,6,5,4,5,4,7,5,6,5,5,7,6,4,5,4,6,4,4,3,5,6,5,5,7,5,7,3,8,6,5,6,8,4,6,7,4,5,3,5,6,5,7,8,4,5,7,6,5,4,3,5,5,7,6,5,8,4,5,6,4,5,4,5,5,5,5,7,4,4,6,7,5,4,5,7,5,5,3,4,7,6,4,6,6,4,6,6,6,5,4,5,3,4,7,4,8,6,7,5,7,5,4,6,6,7,7,6,4,8,7,6,5,7,6,6,7,6,4,5,5,5,4,5,3,4,6,7,5,7,6,6,5,5,6,5,3,6,5,7,4,5,7,6,6,7,5,4,6,7,4,6,7,6,7,7,7,5,4,7,7,6,7,5,4,5,6,5,5,5,5,4,7,6,4,6,4,5,4,4,4,6,4,7,4,7,4,4,5,5,4,3,6,6,4,6,7,3,7,7,5,7,4,3,5,4,5,5,4,5,4,7,4,5,4,4,4,3,6,4,4,4,6,6,4,6,4,4,7,4,5,6,4,4,4,4,5,5,5,4,5,7,5,5,5,4,4,6,3,5,5,5,4,4,3 };
 
 
-__device__ void int_to_mnemonic(const uint64_t mnemonic_hi, const uint64_t mnemonic_lo, uint8_t* mnemonic_phrase) {
+//#define printf(...)
+__constant__ uint32_t dev_num_bytes_find[1];
+__constant__ uint32_t dev_generate_path[10];
+__constant__ uint32_t dev_num_paths[1];
+__constant__ uint32_t dev_num_childs[1];
+__constant__ int16_t dev_static_words_indices[12];
 
+__device__
+void entropy_to_mnemonic(const uint64_t* gl_entropy, uint8_t* mnemonic_phrase) {
+	int16_t indices[12] = {-1, -1, -1 , -1 , -1 , -1 , -1 , -1 , -1 , -1 , -1 , -1 };
+	uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+	uint64_t entropy[2];
+	if (idx < NUM_ENTROPY_FRAME) {
+		entropy[0] = gl_entropy[0 + idx * 2];
+		entropy[1] = gl_entropy[1 + idx * 2];
+	}
+	else
+	{
+		entropy[0] = gl_entropy[0 + (idx % NUM_ENTROPY_FRAME) * 2];
+		entropy[1] = gl_entropy[1 + (idx % NUM_ENTROPY_FRAME) * 2];
+	}
+
+
+	entropy[1] += idx;
+	if (idx > entropy[1]) entropy[0]++;
+
+	for (int i = 0; i < 12; i++) if (dev_static_words_indices[i] != -1) indices[i] = dev_static_words_indices[i];
+	for (int i = 11, pos = 11; i >= 0; i--)
+	{
+		if (indices[i] == -1)
+		{
+			int16_t ind = 0;
+			switch (pos)
+			{
+			case 0: indices[i] = (entropy[0] >> 53) & 2047; break;
+			case 1: indices[i] = (entropy[0] >> 42) & 2047; break;
+			case 2: indices[i] = (entropy[0] >> 31) & 2047; break;
+			case 3: indices[i] = (entropy[0] >> 20) & 2047; break;
+			case 4: indices[i] = (entropy[0] >> 9) & 2047; break;
+			case 5: indices[i] = ((entropy[0] & ((1 << 9) - 1)) << 2) | ((entropy[1] >> 62) & 3); break;
+			case 6: indices[i] = (entropy[1] >> 51) & 2047; break;
+			case 7: indices[i] = (entropy[1] >> 40) & 2047; break;
+			case 8: indices[i] = (entropy[1] >> 29) & 2047; break;
+			case 9: indices[i] = (entropy[1] >> 18) & 2047; break;
+			case 10: indices[i] = (entropy[1] >> 7) & 2047; break;
+			case 11: indices[i] = ((entropy[1] & ((1 << 7) - 1)) << 4);
+
+				break;
+			default:
+				break;
+			}
+			pos--;
+		}
+
+	}
+
+	entropy[0] = 0; entropy[1] = 0;
+	for (int i = 0; i < 12; i++)
+	{
+		uint64_t temp = indices[i];
+		switch (i)
+		{
+		case 0: entropy[0] |= temp << 53; break;
+		case 1: entropy[0] |= temp << 42; break;
+		case 2: entropy[0] |= temp << 31; break;
+		case 3: entropy[0] |= temp << 20; break;
+		case 4: entropy[0] |= temp << 9; break;
+		case 5:
+			entropy[0] |= temp >> 2;
+			entropy[1] |= temp << 62;
+			break;
+		case 6: entropy[1] |= temp << 51; break;
+		case 7: entropy[1] |= temp << 40; break;
+		case 8: entropy[1] |= temp << 29; break;
+		case 9: entropy[1] |= temp << 18; break;
+		case 10: entropy[1] |= temp << 7; break;
+		case 11: entropy[1] |= temp >> 4; break;
+		default:
+			break;
+		}
+	}
+
+	uint8_t entropy_hash[32];
 	uint8_t bytes[16];
-	bytes[15] = mnemonic_lo & 0xFF;
-	bytes[14] = (mnemonic_lo >> 8) & 0xFF;
-	bytes[13] = (mnemonic_lo >> 16) & 0xFF;
-	bytes[12] = (mnemonic_lo >> 24) & 0xFF;
-	bytes[11] = (mnemonic_lo >> 32) & 0xFF;
-	bytes[10] = (mnemonic_lo >> 40) & 0xFF;
-	bytes[9] = (mnemonic_lo >> 48) & 0xFF;
-	bytes[8] = (mnemonic_lo >> 56) & 0xFF;
+	bytes[15] = entropy[1] & 0xFF;
+	bytes[14] = (entropy[1] >> 8) & 0xFF;
+	bytes[13] = (entropy[1] >> 16) & 0xFF;
+	bytes[12] = (entropy[1] >> 24) & 0xFF;
+	bytes[11] = (entropy[1] >> 32) & 0xFF;
+	bytes[10] = (entropy[1] >> 40) & 0xFF;
+	bytes[9] = (entropy[1] >> 48) & 0xFF;
+	bytes[8] = (entropy[1] >> 56) & 0xFF;
 
-	bytes[7] = mnemonic_hi & 0xFF;
-	bytes[6] = (mnemonic_hi >> 8) & 0xFF;
-	bytes[5] = (mnemonic_hi >> 16) & 0xFF;
-	bytes[4] = (mnemonic_hi >> 24) & 0xFF;
-	bytes[3] = (mnemonic_hi >> 32) & 0xFF;
-	bytes[2] = (mnemonic_hi >> 40) & 0xFF;
-	bytes[1] = (mnemonic_hi >> 48) & 0xFF;
-	bytes[0] = (mnemonic_hi >> 56) & 0xFF;
+	bytes[7] = entropy[0] & 0xFF;
+	bytes[6] = (entropy[0] >> 8) & 0xFF;
+	bytes[5] = (entropy[0] >> 16) & 0xFF;
+	bytes[4] = (entropy[0] >> 24) & 0xFF;
+	bytes[3] = (entropy[0] >> 32) & 0xFF;
+	bytes[2] = (entropy[0] >> 40) & 0xFF;
+	bytes[1] = (entropy[0] >> 48) & 0xFF;
+	bytes[0] = (entropy[0] >> 56) & 0xFF;
+	sha256((uint32_t*)bytes, 16, (uint32_t*)entropy_hash);
+	uint8_t checksum = (entropy_hash[0] >> 4) & ((1 << 4) - 1);
+	indices[11] |= checksum;
 
-	uint8_t mnemonic_hash[32];
-	sha256((uint32_t*)bytes, 16, (uint32_t*)mnemonic_hash);
-	uint8_t checksum = (mnemonic_hash[0] >> 4) & ((1 << 4) - 1);
-
-	uint16_t indices[12];
-	indices[0] = (mnemonic_hi >> 53) & 2047;
-	indices[1] = (mnemonic_hi >> 42) & 2047;
-	indices[2] = (mnemonic_hi >> 31) & 2047;
-	indices[3] = (mnemonic_hi >> 20) & 2047;
-	indices[4] = (mnemonic_hi >> 9) & 2047;
-	indices[5] = ((mnemonic_hi & ((1 << 9) - 1)) << 2) | ((mnemonic_lo >> 62) & 3);
-	indices[6] = (mnemonic_lo >> 51) & 2047;
-	indices[7] = (mnemonic_lo >> 40) & 2047;
-	indices[8] = (mnemonic_lo >> 29) & 2047;
-	indices[9] = (mnemonic_lo >> 18) & 2047;
-	indices[10] = (mnemonic_lo >> 7) & 2047;
-	indices[11] = ((mnemonic_lo & ((1 << 7) - 1)) << 4) | checksum;
-
-
-	//uint8_t mnemonic_length = 11 + word_lengths[indices[0]] + word_lengths[indices[1]] + word_lengths[indices[2]] + word_lengths[indices[3]] + word_lengths[indices[4]] + word_lengths[indices[5]] + word_lengths[indices[6]] + word_lengths[indices[7]] + word_lengths[indices[8]] + word_lengths[indices[9]] + word_lengths[indices[10]] + word_lengths[indices[11]];
 	int mnemonic_index = 0;
 
 	for (int i = 0; i < 12; i++) {
-		int word_index = indices[i];
-		int word_length = word_lengths[word_index];
+		uint16_t word_index = indices[i];
+		uint16_t word_length = word_lengths[word_index];
 
 		for (int j = 0; j < word_length; j++) {
 			mnemonic_phrase[mnemonic_index] = words[word_index][j];
@@ -2948,31 +3183,17 @@ __device__ void int_to_mnemonic(const uint64_t mnemonic_hi, const uint64_t mnemo
 
 }
 
-//#define printf(...)
-__constant__ uint32_t dev_num_bytes_find[1];
-__constant__ uint32_t dev_generate_path[10];
-__constant__ uint32_t dev_num_paths[1];
-__constant__ uint32_t dev_num_child[1];
-
-
 
 
 __device__
-int Find_Hash_In_Table(const uint32_t* hash, const tableStruct table, const uint32_t* mnemonic, foundStruct* fnd_ret, int num_bytes, uint32_t path,
-	uint32_t child) {
+int find_hash_in_table(const uint32_t* hash, const tableStruct table, const uint32_t* mnemonic, foundStruct* fnd_ret, uint32_t path, uint32_t child)
+{
 	int found = 0;
 	bool search_state = true;
 	uint32_t line_cnt = (table.size / 20);
 	uint32_t point = 0;
 	uint32_t point_last = 0;
 	uint32_t interval = line_cnt / 3;
-	uint32_t hash160_reverse[5];
-	REVERSE32_FOR_HASH(hash[0], hash160_reverse[0]);
-	REVERSE32_FOR_HASH(hash[1], hash160_reverse[1]);
-	REVERSE32_FOR_HASH(hash[2], hash160_reverse[2]);
-	REVERSE32_FOR_HASH(hash[3], hash160_reverse[3]);
-	REVERSE32_FOR_HASH(hash[4], hash160_reverse[4]);
-
 	uint32_t* hash_from_table;
 	while (point < line_cnt) {
 		point_last = point;
@@ -2995,43 +3216,43 @@ int Find_Hash_In_Table(const uint32_t* hash, const tableStruct table, const uint
 		}
 
 		int cmp = 0;
-		if (hash160_reverse[0] < hash_from_table[0])
+		if (hash[0] < hash_from_table[0])
 		{
 			cmp = -1;
 		}
-		else if (hash160_reverse[0] > hash_from_table[0])
+		else if (hash[0] > hash_from_table[0])
 		{
 			cmp = 1;
 		}
-		else if (hash160_reverse[1] < hash_from_table[1])
+		else if (hash[1] < hash_from_table[1])
 		{
 			cmp = -2;
 		}
-		else if (hash160_reverse[1] > hash_from_table[1])
+		else if (hash[1] > hash_from_table[1])
 		{
 			cmp = 2;
 		}
-		else if (hash160_reverse[2] < hash_from_table[2])
+		else if (hash[2] < hash_from_table[2])
 		{
 			cmp = -3;
 		}
-		else if (hash160_reverse[2] > hash_from_table[2])
+		else if (hash[2] > hash_from_table[2])
 		{
 			cmp = 3;
 		}
-		else if (hash160_reverse[3] < hash_from_table[3])
+		else if (hash[3] < hash_from_table[3])
 		{
 			cmp = -4;
 		}
-		else if (hash160_reverse[3] > hash_from_table[3])
+		else if (hash[3] > hash_from_table[3])
 		{
 			cmp = 4;
 		}
-		else if (hash160_reverse[4] < hash_from_table[4])
+		else if (hash[4] < hash_from_table[4])
 		{
 			cmp = -5;
 		}
-		else if (hash160_reverse[4] > hash_from_table[4])
+		else if (hash[4] > hash_from_table[4])
 		{
 			cmp = 5;
 		}
@@ -3060,44 +3281,50 @@ int Find_Hash_In_Table(const uint32_t* hash, const tableStruct table, const uint
 			if (cmp == 0)
 			{
 				found = 1;
-				for (int i = 0; i < 5; i++) fnd_ret->hash160[i] = hash[i];
-				for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) fnd_ret->mnemonic[i] = mnemonic[i];
-				fnd_ret->path = path;
-				fnd_ret->child = child;
-				fnd_ret->found = 1;
+				uint32_t cnt = fnd_ret->count_found;
+				fnd_ret->count_found++;
+				if (cnt < MAX_FOUND_ADDRESSES)
+				{
+					for (int i = 0; i < 5; i++) fnd_ret->found_info[cnt].hash160[i] = hash[i];
+					for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) fnd_ret->found_info[cnt].mnemonic[i] = mnemonic[i];
+					fnd_ret->found_info[cnt].path = path;
+					fnd_ret->found_info[cnt].child = child;
+				}
 			}
 			break;
 		}
 
 		if (cmp > 1) {
-			if (num_bytes == 5) {
-				if ((hash160_reverse[1] & 0xFF000000) == (hash_from_table[1] & 0xFF000000)) found = 2;
+			if (dev_num_bytes_find[0] == 8) {
+				if (hash[1] == hash_from_table[1]) found = 2;
 			}
-			else if (num_bytes == 6) {
-				if ((hash160_reverse[1] & 0xFFFF0000) == (hash_from_table[1] & 0xFFFF0000)) found = 2;
+#ifdef TEST_MODE
+			else if (dev_num_bytes_find[0] == 7) {
+				if ((hash[1] & 0x00FFFFFF) == (hash_from_table[1] & 0x00FFFFFF)) found = 2;
 			}
-			else if (num_bytes == 7) {
-				if ((hash160_reverse[1] & 0xFFFFFF00) == (hash_from_table[1] & 0xFFFFFF00)) found = 2;
+			else if (dev_num_bytes_find[0] == 6) {
+				if ((hash[1] & 0x0000FFFF) == (hash_from_table[1] & 0x0000FFFF)) found = 2;
 			}
-			else if (num_bytes == 8) {
-				if (hash160_reverse[1] == hash_from_table[1]) found = 2;
+			else if (dev_num_bytes_find[0] == 5) {
+				if ((hash[1] & 0x000000FF) == (hash_from_table[1] & 0x000000FF)) found = 2;
 			}
+#endif //TEST_MODE
 		}
 
 
 		if (found == 2) {
-
-			if (fnd_ret->found_bytes == 0)
+			uint32_t cnt = fnd_ret->count_found_bytes;
+			fnd_ret->count_found_bytes++;
+			if (cnt < MAX_FOUND_ADDRESSES)
 			{
-				fnd_ret->found_bytes = 2;
 				for (int i = 0; i < 5; i++)
 				{
-					fnd_ret->hash160_bytes_from_table[i] = hash_from_table[i];
-					fnd_ret->hash160_bytes[i] = hash[i];
+					fnd_ret->found_bytes_info[cnt].hash160_from_table[i] = hash_from_table[i];
+					fnd_ret->found_bytes_info[cnt].hash160[i] = hash[i];
 				}
-				for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) fnd_ret->mnemonic_bytes[i] = mnemonic[i];
-				fnd_ret->path = path;
-				fnd_ret->child = child;
+				for (int i = 0; i < SIZE32_MNEMONIC_FRAME; i++) fnd_ret->found_bytes_info[cnt].mnemonic[i] = mnemonic[i];
+				fnd_ret->found_bytes_info[cnt].path = path;
+				fnd_ret->found_bytes_info[cnt].child = child;
 			}
 			break;
 		}
@@ -3107,21 +3334,6 @@ int Find_Hash_In_Table(const uint32_t* hash, const tableStruct table, const uint
 	return found;
 }
 
-__device__
-void dev_search_hash160_in_tables(
-	const uint32_t* hash160_buffer,
-	const tableStruct* tables,
-	const uint32_t* mnemonic,
-	foundStruct* ret,
-	uint32_t path,
-	uint32_t child
-)
-{
-	const uint8_t* hash160 = (const uint8_t*)hash160_buffer;
-	uint8_t num_tables = hash160[0];
-	int found = Find_Hash_In_Table(hash160_buffer, tables[num_tables], mnemonic, ret, dev_num_bytes_find[0], path, child);
-
-}
 
 __device__ void key_to_hash160(
 	const extended_private_key_t* master_private,
@@ -3144,11 +3356,11 @@ __device__ void key_to_hash160(
 	if (dev_generate_path[0] != 0) {
 		normal_private_child_from_private(master_private, &target_key, 0);
 		//m/0/x
-		for (int i = 0; i < dev_num_child[0]; i++) {
+		for (int i = 0; i < dev_num_childs[0]; i++) {
 			normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 			calc_public(&target_key_fo_pub, &target_public_key);
 			calc_hash160(&target_public_key, hash);
-			dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, &ret->f[0], 0, i);
+			find_hash_in_table(hash, tables_legacy[(uint8_t)hash[0]], mnemonic, &ret->f[0], 0, i);
 		}
 	}
 
@@ -3159,11 +3371,11 @@ __device__ void key_to_hash160(
 	if (dev_generate_path[1] != 0) {
 		normal_private_child_from_private(master_private, &target_key, 1);
 		//m/1/x
-		for (int i = 0; i < dev_num_child[0]; i++) {
+		for (int i = 0; i < dev_num_childs[0]; i++) {
 			normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 			calc_public(&target_key_fo_pub, &target_public_key);
 			calc_hash160(&target_public_key, hash);
-			dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, &ret->f[0], 1, i);
+			find_hash_in_table(hash, tables_legacy[(uint8_t)hash[0]], mnemonic, &ret->f[0], 1, i);
 		}
 	}
 	//______________________________________________________________________________________________________________________
@@ -3178,22 +3390,22 @@ __device__ void key_to_hash160(
 			//m/0/0
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
 			//m/0/0/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
 				calc_hash160(&target_public_key, hash);
-				dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, &ret->f[0], 2, i);
+				find_hash_in_table(hash, tables_legacy[(uint8_t)hash[0]], mnemonic, &ret->f[0], 2, i);
 			}
 		}
 		if (dev_generate_path[3] != 0) {
 			//m/0/1
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
 			//m/0/1/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
 				calc_hash160(&target_public_key, hash);
-				dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, &ret->f[0], 3, i);
+				find_hash_in_table(hash, tables_legacy[(uint8_t)hash[0]], mnemonic, &ret->f[0], 3, i);
 			}
 		}
 	}
@@ -3212,11 +3424,11 @@ __device__ void key_to_hash160(
 		if (dev_generate_path[4] != 0) {
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
 			//m/44'/0'/0'/0/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
 				calc_hash160(&target_public_key, hash);
-				dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, &ret->f[0], 4, i);
+				find_hash_in_table(hash, tables_legacy[(uint8_t)hash[0]], mnemonic, &ret->f[0], 4, i);
 			}
 		}
 		//______________________________________________________________________________________________________________________
@@ -3226,11 +3438,11 @@ __device__ void key_to_hash160(
 		if (dev_generate_path[5] != 0) {
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
 			//m/44'/0'/0'/1/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
 				calc_hash160(&target_public_key, hash);
-				dev_search_hash160_in_tables(hash, tables_legacy, mnemonic, &ret->f[0], 5, i);
+				find_hash_in_table(hash, tables_legacy[(uint8_t)hash[0]], mnemonic, &ret->f[0], 5, i);
 			}
 		}
 	}
@@ -3249,11 +3461,11 @@ __device__ void key_to_hash160(
 		if (dev_generate_path[6] != 0) {
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
 			//m/49'/0'/0'/0/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
 				calc_hash160_bip49(&target_public_key, hash);
-				dev_search_hash160_in_tables(hash, tables_segwit, mnemonic, &ret->f[1], 6, i);
+				find_hash_in_table(hash, tables_segwit[(uint8_t)hash[0]], mnemonic, &ret->f[1], 6, i);
 			}
 		}
 		//______________________________________________________________________________________________________________________
@@ -3263,11 +3475,11 @@ __device__ void key_to_hash160(
 		if (dev_generate_path[7] != 0) {
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
 			//m/49'/0'/0'/1/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
 				calc_hash160_bip49(&target_public_key, hash);
-				dev_search_hash160_in_tables(hash, tables_segwit, mnemonic, &ret->f[1], 7, i);
+				find_hash_in_table(hash, tables_segwit[(uint8_t)hash[0]], mnemonic, &ret->f[1], 7, i);
 			}
 		}
 	}
@@ -3286,11 +3498,11 @@ __device__ void key_to_hash160(
 		if (dev_generate_path[8] != 0) {
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
 			//m/84'/0'/0'/0/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
 				calc_hash160(&target_public_key, hash);
-				dev_search_hash160_in_tables(hash, tables_native_segwit, mnemonic, &ret->f[2], 8, i);
+				find_hash_in_table(hash, tables_native_segwit[(uint8_t)hash[0]], mnemonic, &ret->f[2], 8, i);
 			}
 		}
 		//______________________________________________________________________________________________________________________
@@ -3300,11 +3512,11 @@ __device__ void key_to_hash160(
 		if (dev_generate_path[9] != 0) {
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
 			//m/84'/0'/0'/1/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
 				calc_hash160(&target_public_key, hash);
-				dev_search_hash160_in_tables(hash, tables_native_segwit, mnemonic, &ret->f[2], 9, i);
+				find_hash_in_table(hash, tables_native_segwit[(uint8_t)hash[0]], mnemonic, &ret->f[2], 9, i);
 			}
 		}
 	}
@@ -3332,11 +3544,12 @@ __device__ void key_to_hash160_for_save(
 	if (dev_generate_path[0] != 0) {
 		normal_private_child_from_private(master_private, &target_key, 0);
 		//m/0/x
-		for (int i = 0; i < dev_num_child[0]; i++) {
+		for (int i = 0; i < dev_num_childs[0]; i++) {
 			normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 			calc_public(&target_key_fo_pub, &target_public_key);
-			calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
-			dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_legacy, mnemonic, &ret->f[0], 0, i);
+			uint32_t* phash = &hash[(i + dev_num_childs[0] * point) * 5];
+			calc_hash160(&target_public_key, phash);
+			find_hash_in_table(phash, tables_legacy[(uint8_t)phash[0]], mnemonic, &ret->f[0], 0, i);
 		}
 		point++;
 	}
@@ -3347,11 +3560,12 @@ __device__ void key_to_hash160_for_save(
 	if (dev_generate_path[1] != 0) {
 		normal_private_child_from_private(master_private, &target_key, 1);
 		//m/1/x
-		for (int i = 0; i < dev_num_child[0]; i++) {
+		for (int i = 0; i < dev_num_childs[0]; i++) {
 			normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 			calc_public(&target_key_fo_pub, &target_public_key);
-			calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
-			dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_legacy, mnemonic, &ret->f[0], 1, i);
+			uint32_t* phash = &hash[(i + dev_num_childs[0] * point) * 5];
+			calc_hash160(&target_public_key, phash);
+			find_hash_in_table(phash, tables_legacy[(uint8_t)phash[0]], mnemonic, &ret->f[0], 1, i);
 		}
 		point++;
 	}
@@ -3366,11 +3580,12 @@ __device__ void key_to_hash160_for_save(
 			//m/0/0
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
 			//m/0/0/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
-				calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
-				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_legacy, mnemonic, &ret->f[0], 2, i);
+				uint32_t* phash = &hash[(i + dev_num_childs[0] * point) * 5];
+				calc_hash160(&target_public_key, phash);
+				find_hash_in_table(phash, tables_legacy[(uint8_t)phash[0]], mnemonic, &ret->f[0], 2, i);
 			}
 			point++;
 		}
@@ -3378,11 +3593,12 @@ __device__ void key_to_hash160_for_save(
 			//m/0/1
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
 			//m/0/1/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
-				calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
-				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_legacy, mnemonic, &ret->f[0], 3, i);
+				uint32_t* phash = &hash[(i + dev_num_childs[0] * point) * 5];
+				calc_hash160(&target_public_key, phash);
+				find_hash_in_table(phash, tables_legacy[(uint8_t)phash[0]], mnemonic, &ret->f[0], 3, i);
 			}
 			point++;
 		}
@@ -3402,11 +3618,12 @@ __device__ void key_to_hash160_for_save(
 		if (dev_generate_path[4] != 0) {
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
 			//m/44'/0'/0'/0/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
-				calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
-				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_legacy, mnemonic, &ret->f[0], 4, i);
+				uint32_t* phash = &hash[(i + dev_num_childs[0] * point) * 5];
+				calc_hash160(&target_public_key, phash);
+				find_hash_in_table(phash, tables_legacy[(uint8_t)phash[0]], mnemonic, &ret->f[0], 4, i);
 			}
 			point++;
 		}
@@ -3417,11 +3634,12 @@ __device__ void key_to_hash160_for_save(
 		if (dev_generate_path[5] != 0) {
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
 			//m/44'/0'/0'/1/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
-				calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
-				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_legacy, mnemonic, &ret->f[0], 5, i);
+				uint32_t* phash = &hash[(i + dev_num_childs[0] * point) * 5];
+				calc_hash160(&target_public_key, phash);
+				find_hash_in_table(phash, tables_legacy[(uint8_t)phash[0]], mnemonic, &ret->f[0], 5, i);
 			}
 			point++;
 		}
@@ -3441,11 +3659,12 @@ __device__ void key_to_hash160_for_save(
 		if (dev_generate_path[6] != 0) {
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
 			//m/49'/0'/0'/0/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
-				calc_hash160_bip49(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
-				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_segwit, mnemonic, &ret->f[1], 6, i);
+				uint32_t* phash = &hash[(i + dev_num_childs[0] * point) * 5];
+				calc_hash160_bip49(&target_public_key, phash);
+				find_hash_in_table(phash, tables_segwit[(uint8_t)phash[0]], mnemonic, &ret->f[1], 6, i);
 			}
 			point++;
 		}
@@ -3456,11 +3675,12 @@ __device__ void key_to_hash160_for_save(
 		if (dev_generate_path[7] != 0) {
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
 			//m/49'/0'/0'/1/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
-				calc_hash160_bip49(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
-				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_segwit, mnemonic, &ret->f[1], 7, i);
+				uint32_t* phash = &hash[(i + dev_num_childs[0] * point) * 5];
+				calc_hash160_bip49(&target_public_key, phash);
+				find_hash_in_table(phash, tables_segwit[(uint8_t)phash[0]], mnemonic, &ret->f[1], 7, i);
 			}
 			point++;
 		}
@@ -3480,11 +3700,12 @@ __device__ void key_to_hash160_for_save(
 		if (dev_generate_path[8] != 0) {
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 0);
 			//m/84'/0'/0'/0/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
-				calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
-				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_native_segwit, mnemonic, &ret->f[2], 8, i);
+				uint32_t* phash = &hash[(i + dev_num_childs[0] * point) * 5];
+				calc_hash160(&target_public_key, phash);
+				find_hash_in_table(phash, tables_native_segwit[(uint8_t)phash[0]], mnemonic, &ret->f[2], 8, i);
 			}
 			point++;
 		}
@@ -3495,11 +3716,12 @@ __device__ void key_to_hash160_for_save(
 		if (dev_generate_path[9] != 0) {
 			normal_private_child_from_private(&master_private_fo_extint, &target_key, 1);
 			//m/84'/0'/0'/1/x
-			for (int i = 0; i < dev_num_child[0]; i++) {
+			for (int i = 0; i < dev_num_childs[0]; i++) {
 				normal_private_child_from_private(&target_key, &target_key_fo_pub, i);
 				calc_public(&target_key_fo_pub, &target_public_key);
-				calc_hash160(&target_public_key, &hash[(i + dev_num_child[0] * point) * 5]);
-				dev_search_hash160_in_tables(&hash[(i + dev_num_child[0] * point) * 5], tables_native_segwit, mnemonic, &ret->f[2], 9, i);
+				uint32_t* phash = &hash[(i + dev_num_childs[0] * point) * 5];
+				calc_hash160(&target_public_key, phash);
+				find_hash_in_table(phash, tables_native_segwit[(uint8_t)phash[0]], mnemonic, &ret->f[2], 9, i);
 			}
 		}
 	}
@@ -3514,59 +3736,77 @@ __global__ void gl_bruteforce_mnemonic(
 	const tableStruct* __restrict__ tables_native_segwit,
 	retStruct* __restrict__ ret
 )
-
 {
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	//int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	uint8_t mnemonic_phrase[SIZE_MNEMONIC_FRAME] = { 0 };
 	uint8_t* mnemonic = mnemonic_phrase;
 	uint32_t ipad[256 / 4];
 	uint32_t opad[256 / 4];
-	uint32_t seed[64 / 4] = { 0 };
+	uint32_t seed[64 / 4];
 
-	int_to_mnemonic(entropy[0] * (idx + 1), entropy[1] * (idx + 1), mnemonic);
-
-	for (int x = 0; x < 120 / 4; x++) {
-		ipad[x] = 0x36363636 ^ *(uint32_t*)((uint32_t*)mnemonic + x);
-		opad[x] = 0x5C5C5C5C ^ *(uint32_t*)((uint32_t*)mnemonic + x);
+	entropy_to_mnemonic(entropy, mnemonic);
+#pragma unroll
+	for (int x = 0; x < 120 / 8; x++) {
+		*(uint64_t*)((uint64_t*)ipad + x) = 0x3636363636363636ULL ^ SWAP512(*(uint64_t*)((uint64_t*)mnemonic + x));
 	}
+#pragma unroll
+	for (int x = 0; x < 120 / 8; x++) {
+		*(uint64_t*)((uint64_t*)opad + x) = 0x5C5C5C5C5C5C5C5CULL ^ SWAP512(*(uint64_t*)((uint64_t*)mnemonic + x));
+	}
+#pragma unroll
 	for (int x = 120 / 4; x < 128 / 4; x++) {
 		ipad[x] = 0x36363636;
+	}
+#pragma unroll
+	for (int x = 120 / 4; x < 128 / 4; x++) {
 		opad[x] = 0x5C5C5C5C;
 	}
-
-	for (int x = 0; x < 12 / 4; x++) {
-		ipad[x + 128 / 4] = *(uint32_t*)((uint32_t*)&salt + x);
+#pragma unroll
+	for (int x = 0; x < 16 / 4; x++) {
+		ipad[x + 128 / 4] = *(uint32_t*)((uint32_t*)&salt_swap + x);
 	}
-	ipad[140 / 4] = 0;
-	opad[192 / 4] = 0;
-	sha512((uint64_t*)ipad, 140, (uint64_t*)&opad[128 / 4]);
-	sha512((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
-	XOR_SEED_WITH_ROUND_32(seed, (&ipad[128 / 4]));
-
+	sha512_swap((uint64_t*)ipad, 140, (uint64_t*)&opad[128 / 4]);
+	sha512_swap((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
+#pragma unroll
+	for (int x = 0; x < 64 / 4; x++) {
+		seed[x] = ipad[128 / 4 + x];
+	}
 	for (int x = 1; x < 2048; x++) {
-		sha512((uint64_t*)ipad, 192, (uint64_t*)&opad[128 / 4]);
-		sha512((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
-		XOR_SEED_WITH_ROUND_32(seed, (&ipad[128 / 4]));
+		sha512_swap((uint64_t*)ipad, 192, (uint64_t*)&opad[128 / 4]);
+		sha512_swap((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
+#pragma unroll
+		for (int x = 0; x < 64 / 4; x++) {
+			seed[x] = seed[x] ^ ipad[128 / 4 + x];
+		}
 	}
-
-	for (int x = 0; x < 12 / 4; x++) {
-		ipad[x] = 0x36363636 ^ *(uint32_t*)((uint32_t*)&key + x);
-		opad[x] = 0x5C5C5C5C ^ *(uint32_t*)((uint32_t*)&key + x);
+#pragma unroll
+	for (int x = 0; x < 16 / 4; x++) {
+		ipad[x] = 0x36363636 ^ *(uint32_t*)((uint32_t*)&key_swap + x);
 	}
-
-	for (int x = 12 / 4; x < 128 / 4; x++) {
+#pragma unroll
+	for (int x = 0; x < 16 / 4; x++) {
+		opad[x] = 0x5C5C5C5C ^ *(uint32_t*)((uint32_t*)&key_swap + x);
+	}
+#pragma unroll
+	for (int x = 16 / 4; x < 128 / 4; x++) {
 		ipad[x] = 0x36363636;
+	}
+#pragma unroll
+	for (int x = 16 / 4; x < 128 / 4; x++) {
 		opad[x] = 0x5C5C5C5C;
 	}
-
+#pragma unroll
 	for (int x = 0; x < 64 / 4; x++) {
 		ipad[x + 128 / 4] = seed[x];
 	}
-	ipad[192 / 4] = 0;
-	opad[192 / 4] = 0;
-	sha512((uint64_t*)ipad, 192, (uint64_t*)&opad[128 / 4]);
-	sha512((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
-
+	//ipad[192 / 4] = 0;
+	//opad[192 / 4] = 0;
+	sha512_swap((uint64_t*)ipad, 192, (uint64_t*)&opad[128 / 4]);
+	sha512_swap((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
+#pragma unroll
+	for (int x = 0; x < 128 / 8; x++) {
+		*(uint64_t*)((uint64_t*)&ipad[128 / 4] + x) = SWAP512(*(uint64_t*)((uint64_t*)&ipad[128 / 4] + x));
+	}
 	key_to_hash160((extended_private_key_t*)&ipad[128 / 4], tables_legacy, tables_segwit, tables_native_segwit, (uint32_t*)mnemonic, ret);
 	//__syncthreads();
 }
@@ -3581,66 +3821,78 @@ __global__ void gl_bruteforce_mnemonic_for_save(
 	uint8_t* __restrict__ mnemonic_ret,
 	uint32_t* __restrict__ hash160_ret
 )
-
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	uint8_t mnemonic_phrase[SIZE_MNEMONIC_FRAME] = { 0 };
-	uint8_t* mnemonic = mnemonic_phrase;
-	uint32_t ipad[256 / 4];
-	uint32_t opad[256 / 4];
-	uint32_t seed[64 / 4] = { 0 };
-	//uint32_t hash[(20 / 4) * NUM_ALL_CHILDS];
-	int_to_mnemonic(entropy[0] * (idx + 1), entropy[1] * (idx + 1), mnemonic);
+	uint8_t mnemonic[SIZE_MNEMONIC_FRAME] = { 0 };
+	uint32_t ipad[512 / 4];
+	uint32_t opad[512 / 4];
+	uint32_t seed[64 / 4];
+	//uint64_t W[80];
 
-	for (int x = 0; x < 120 / 4; x++) {
-		ipad[x] = 0x36363636 ^ *(uint32_t*)((uint32_t*)mnemonic + x);
-		opad[x] = 0x5C5C5C5C ^ *(uint32_t*)((uint32_t*)mnemonic + x);
+	entropy_to_mnemonic(entropy, mnemonic);
+#pragma unroll
+	for (int x = 0; x < 120 / 8; x++) {
+		*(uint64_t*)((uint64_t*)ipad + x) = 0x3636363636363636ULL ^ SWAP512(*(uint64_t*)((uint64_t*)mnemonic + x));
 	}
+#pragma unroll
+	for (int x = 0; x < 120 / 8; x++) {
+		*(uint64_t*)((uint64_t*)opad + x) = 0x5C5C5C5C5C5C5C5CULL ^ SWAP512(*(uint64_t*)((uint64_t*)mnemonic + x));
+	}
+#pragma unroll
 	for (int x = 120 / 4; x < 128 / 4; x++) {
 		ipad[x] = 0x36363636;
+	}
+#pragma unroll
+	for (int x = 120 / 4; x < 128 / 4; x++) {
 		opad[x] = 0x5C5C5C5C;
 	}
-
-	for (int x = 0; x < 12 / 4; x++) {
-		ipad[x + 128 / 4] = *(uint32_t*)((uint32_t*)&salt + x);
+#pragma unroll
+	for (int x = 0; x < 16 / 4; x++) {
+		ipad[x + 128 / 4] = *(uint32_t*)((uint32_t*)&salt_swap + x);
 	}
-	ipad[140 / 4] = 0;
-	opad[192 / 4] = 0;
-	sha512((uint64_t*)ipad, 140, (uint64_t*)&opad[128 / 4]);
-	sha512((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
-	XOR_SEED_WITH_ROUND_32(seed, (&ipad[128 / 4]));
-
+	sha512_swap((uint64_t*)ipad, 140, (uint64_t*)&opad[128 / 4]);
+	sha512_swap((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
+#pragma unroll
+	for (int x = 0; x < 64 / 4; x++) {
+		seed[x] = ipad[128 / 4 + x];
+	}
 	for (int x = 1; x < 2048; x++) {
-		sha512((uint64_t*)ipad, 192, (uint64_t*)&opad[128 / 4]);
-		sha512((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
-		XOR_SEED_WITH_ROUND_32(seed, (&ipad[128 / 4]));
+		sha512_swap((uint64_t*)ipad, 192, (uint64_t*)&opad[128 / 4]);
+		sha512_swap((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
+#pragma unroll
+		for (int x = 0; x < 64 / 4; x++) {
+			seed[x] = seed[x] ^ ipad[128 / 4 + x];
+		}
 	}
-
-	for (int x = 0; x < 12 / 4; x++) {
-		ipad[x] = 0x36363636 ^ *(uint32_t*)((uint32_t*)&key + x);
-		opad[x] = 0x5C5C5C5C ^ *(uint32_t*)((uint32_t*)&key + x);
+#pragma unroll
+	for (int x = 0; x < 16 / 4; x++) {
+		ipad[x] = 0x36363636 ^ *(uint32_t*)((uint32_t*)&key_swap + x);
 	}
-
-	for (int x = 12 / 4; x < 128 / 4; x++) {
+#pragma unroll
+	for (int x = 0; x < 16 / 4; x++) {
+		opad[x] = 0x5C5C5C5C ^ *(uint32_t*)((uint32_t*)&key_swap + x);
+	}
+#pragma unroll
+	for (int x = 16 / 4; x < 128 / 4; x++) {
 		ipad[x] = 0x36363636;
+	}
+#pragma unroll
+	for (int x = 16 / 4; x < 128 / 4; x++) {
 		opad[x] = 0x5C5C5C5C;
 	}
-
+#pragma unroll
 	for (int x = 0; x < 64 / 4; x++) {
 		ipad[x + 128 / 4] = seed[x];
 	}
-	ipad[192 / 4] = 0;
-	opad[192 / 4] = 0;
-	sha512((uint64_t*)ipad, 192, (uint64_t*)&opad[128 / 4]);
-	sha512((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
-
-	key_to_hash160_for_save((extended_private_key_t*)&ipad[128 / 4], tables_legacy, tables_segwit, tables_native_segwit, (uint32_t*)mnemonic, ret, &hash160_ret[idx * (dev_num_paths[0] * dev_num_child[0] * 5)]);
-
-	//for (int i = 0; i < (NUM_ALL_CHILDS * 5); i++)
-	//{
-	//	hash160_ret[idx * (NUM_ALL_CHILDS * 5) + i] = hash[i];
-	//}
-
+	//ipad[192 / 4] = 0;
+	//opad[192 / 4] = 0;
+	sha512_swap((uint64_t*)ipad, 192, (uint64_t*)&opad[128 / 4]);
+	sha512_swap((uint64_t*)opad, 192, (uint64_t*)&ipad[128 / 4]);
+#pragma unroll
+	for (int x = 0; x < 128 / 8; x++) {
+		*(uint64_t*)((uint64_t*)&ipad[128 / 4] + x) = SWAP512(*(uint64_t*)((uint64_t*)&ipad[128 / 4] + x));
+	}
+	key_to_hash160_for_save((extended_private_key_t*)&ipad[128 / 4], tables_legacy, tables_segwit, tables_native_segwit, (uint32_t*)mnemonic, ret, &hash160_ret[idx * (dev_num_paths[0] * dev_num_childs[0] * 5)]);
 	for (int i = 0; i < SIZE_MNEMONIC_FRAME; i++)
 	{
 		mnemonic_ret[idx * SIZE_MNEMONIC_FRAME + i] = mnemonic[i];
@@ -3651,13 +3903,4 @@ __global__ void gl_bruteforce_mnemonic_for_save(
 
 
 
-#undef F0
-#undef F1
-#undef S0
-#undef S1
-#undef S2
-#undef S3
 
-#undef mod
-#undef shr32
-#undef rotl32

@@ -1,8 +1,8 @@
 /**
   ******************************************************************************
   * @author		Anton Houzich
-  * @version	V1.2.0
-  * @date		16-April-2023
+  * @version	V2.0.0
+  * @date		28-April-2023
   * @mail		houzich_anton@mail.ru
   * discussion  https://t.me/BRUTE_FORCE_CRYPTO_WALLET
   ******************************************************************************
@@ -35,5 +35,6 @@ __global__ void gl_bruteforce_mnemonic_for_save(
 
 extern __constant__ uint32_t dev_num_bytes_find[];
 extern __constant__ uint32_t dev_generate_path[];
-extern __constant__ uint32_t dev_num_child[];
+extern __constant__ uint32_t dev_num_childs[];
 extern __constant__ uint32_t dev_num_paths[];
+extern __constant__ int16_t dev_static_words_indices[];

@@ -1,8 +1,8 @@
 /**
   ******************************************************************************
   * @author		Anton Houzich
-  * @version	V1.2.0
-  * @date		16-April-2023
+  * @version	V2.0.0
+  * @date		28-April-2023
   * @mail		houzich_anton@mail.ru
   * discussion  https://t.me/BRUTE_FORCE_CRYPTO_WALLET
   ******************************************************************************
@@ -33,11 +33,11 @@ namespace tools {
 		QueryPerformanceCounter(&performanceCountStop);
 	}
 
-	void stop_time_and_calc(float* delay) {
+	void stop_time_and_calc_sec(float* delay) {
 		stop_time();
 		LARGE_INTEGER perfFrequency;
 		QueryPerformanceFrequency(&perfFrequency);
-		*delay = (1000.0f * (float)(performanceCountStop.QuadPart - performanceCountStart.QuadPart) / (float)perfFrequency.QuadPart);
+		*delay = (double)(performanceCountStop.QuadPart - performanceCountStart.QuadPart) / (double)perfFrequency.QuadPart;
 	}
 
 	std::string formatWithCommas(double val)
@@ -57,29 +57,26 @@ namespace tools {
 		return ss.str();
 	}
 
-	void reverseHashUint64(uint32_t* hash_in, uint32_t* hash_out) {
-		uint64_t hash160_reverse[2] = { 0 };
-		uint32_t hash160_reverse_32;
-		REVERSE64_FOR_HASH(*(uint64_t*)&hash_in[0], hash160_reverse[0]);
-		REVERSE64_FOR_HASH(*(uint64_t*)&hash_in[2], hash160_reverse[1]);
-		REVERSE32_FOR_HASH(*(uint32_t*)&hash_in[4], hash160_reverse_32);
-		*(uint64_t*)&hash_out[0] = hash160_reverse[0];
-		*(uint64_t*)&hash_out[2] = hash160_reverse[1];
-		*(uint32_t*)&hash_out[4] = hash160_reverse_32;
+	std::string formatPrefix(double val)
+	{
+		const std::string prefixes[5] = { "MEGA", "GIGA", "TERA", "PETA", "EXA" };
+		const double prefix_multipliers[5] = { 1000000,1000000000,1000000000000,1000000000000000,1000000000000000000 };
+		std::string prefix = "";
+		for (int i = 4; i >= 0; i--)
+		{
+			if (val > prefix_multipliers[i])
+			{
+				val = (val / (double)prefix_multipliers[i]);
+				prefix = prefixes[i];
+			}
+		}
+
+		std::stringstream ss;
+		ss.imbue(std::locale("en_US.UTF-8"));
+		ss << std::fixed << val << " " << prefix;
+		return ss.str();
 	}
-	void reverseHashUint32(uint32_t* hash_in, uint32_t* hash_out) {
-		uint32_t hash160_reverse[5] = { 0 };
-		REVERSE32_FOR_HASH(hash_in[0], hash160_reverse[0]);
-		REVERSE32_FOR_HASH(hash_in[1], hash160_reverse[1]);
-		REVERSE32_FOR_HASH(hash_in[2], hash160_reverse[2]);
-		REVERSE32_FOR_HASH(hash_in[3], hash160_reverse[3]);
-		REVERSE32_FOR_HASH(hash_in[4], hash160_reverse[4]);
-		hash_out[0] = hash160_reverse[0];
-		hash_out[1] = hash160_reverse[1];
-		hash_out[2] = hash160_reverse[2];
-		hash_out[3] = hash160_reverse[3];
-		hash_out[4] = hash160_reverse[4];
-	}
+
 	std::vector<uint8_t> hexStringToVector(const std::string& source)
 	{
 		if (std::string::npos != source.find_first_not_of("0123456789ABCDEFabcdef"))
@@ -223,7 +220,7 @@ namespace tools {
 	int decodeAddressBase58(const std::string& addr, std::string& hash160hex)
 	{
 		std::vector<unsigned char> hash160;
-		if (DecodeBase58Check(addr, hash160, 33)) {
+		if (DecodeBase58Check(addr, hash160, (int)addr.size())) {
 			if (hash160.size() != 21) {
 				std::cerr << "ERROR HASH160. ADDRESS: \"" << addr << "\", HASH160 SIZE: " << hash160.size() << std::endl;
 				return 1;
@@ -249,7 +246,7 @@ namespace tools {
 	{
 		std::vector<unsigned char> v_hash160;
 
-		if (DecodeBase58Check(addr, v_hash160, 33)) {
+		if (DecodeBase58Check(addr, v_hash160, (int)addr.size())) {
 			if (v_hash160.size() != 21) {
 				std::cerr << "ERROR HASH160. ADDRESS: \"" << addr << "\", HASH160 SIZE: " << v_hash160.size() << std::endl;
 			}
@@ -344,7 +341,13 @@ namespace tools {
 		return 0;
 	}
 
+	int encodeAddressBIP49(std::string str, uint16_t* words)
+	{
 
+		return 0;
+	}
+
+	
 
 
 }
