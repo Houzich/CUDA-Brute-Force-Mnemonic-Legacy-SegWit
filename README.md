@@ -99,7 +99,7 @@
 
 
 
-### ОБСУЖДЕНИЕ КОДА: https://t.me/BRUTE_FORCE_CRYPTO_WALLET
+### ОБСУЖДЕНИЕ КОДА: https://t.me/brute_force_gpu
 
 
 ## If you want to support the project don't hesitate to donate.
