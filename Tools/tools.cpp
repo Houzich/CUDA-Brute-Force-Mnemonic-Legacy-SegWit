@@ -1,10 +1,10 @@
-п»ї/**
+/**
   ******************************************************************************
   * @author		Anton Houzich
   * @version	V2.0.0
   * @date		28-April-2023
   * @mail		houzich_anton@mail.ru
-  * discussion  https://t.me/BRUTE_FORCE_CRYPTO_WALLET
+  * discussion  https://t.me/brute_force_gpu
   ******************************************************************************
   */
 #include "main.h"
@@ -215,7 +215,7 @@ namespace tools {
 			mnemonic_index++;
 		}
 
-		mnemonic_phrase[mnemonic_index - 1] = 0;	//РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ, СѓР±РёСЂР°РµС‚ РїРѕСЃР»РµРґРЅРёР№ РїСЂРѕР±РµР»
+		mnemonic_phrase[mnemonic_index - 1] = 0;	//обязательно, убирает последний пробел
 
 	}
 
@@ -603,3 +603,4 @@ namespace tools {
 	}
 
 	}
+
