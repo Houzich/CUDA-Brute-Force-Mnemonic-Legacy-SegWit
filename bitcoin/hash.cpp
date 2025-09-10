@@ -91,3 +91,4 @@ CHashWriter TaggedHash(const std::string& tag)
     writer << taghash << taghash;
     return writer;
 }
+

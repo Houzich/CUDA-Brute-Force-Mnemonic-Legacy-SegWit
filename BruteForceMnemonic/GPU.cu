@@ -1,10 +1,10 @@
-п»ї/**
+/**
   ******************************************************************************
   * @author		Anton Houzich
   * @version	V2.0.0
   * @date		28-April-2023
   * @mail		houzich_anton@mail.ru
-  * discussion  https://t.me/BRUTE_FORCE_CRYPTO_WALLET
+  * discussion  https://t.me/brute_force_gpu
   ******************************************************************************
   */
 #include <stdafx.h>
@@ -3013,15 +3013,15 @@ void hash160(const uint8_t* input, int input_len, uint32_t* output) {
 }
 __device__
 void calc_hash160(extended_public_key_t* pub, uint32_t* hash160_bytes) {
-	//РІСЂРѕРґРµ РµСЃР»Рё РЅРµ Р·Р°РїРѕР»РЅСЏС‚СЊ РЅСѓР»СЏРјРё, С‚Рѕ РёРЅРѕРіРґР° СЃС‡РёС‚Р°РµС‚ РЅРµ РїСЂР°РІРёР»СЊРЅРѕ
-	uint8_t serialized_pub_key[36] = { 0 };//36 Р° РЅРµ 33, РїРѕС‚РѕРјСѓ С‡С‚Рѕ С‚Р°Рј РїРѕС‚РѕРј, Р±Р»СЏ РЅР° uint32_t РїРµСЂРµРІРѕРґРёС‚СЊСЃСЏ Рё Р»РёС€РЅРёРё РЅРµ РЅСѓР»РµРІС‹Рµ Р±Р°Р№С‚С‹ РїРѕСЏРІР»СЏСЋС‚СЃСЏ Рё РІСЃРµ РІ РїРёР·РґСѓ СЃС‹РїРёС‚СЊСЃСЏ
+	//вроде если не заполнять нулями, то иногда считает не правильно
+	uint8_t serialized_pub_key[36] = { 0 };//36 а не 33, потому что там потом, бля на uint32_t переводиться и лишнии не нулевые байты появляются и все в пизду сыпиться
 	serialized_public_key(pub, (uint8_t*)&serialized_pub_key);
 	hash160((const uint8_t*)&serialized_pub_key, 33, hash160_bytes);
 }
 
 __device__
 void calc_hash160_bip49(extended_public_key_t* pub, uint32_t* hash160_bytes) {
-	uint8_t serialized_pub_key[36] = { 0 };//36 Р° РЅРµ 33, РїРѕС‚РѕРјСѓ С‡С‚Рѕ С‚Р°Рј РїРѕС‚РѕРј, Р±Р»СЏ РЅР° uint32_t РїРµСЂРµРІРѕРґРёС‚СЊСЃСЏ Рё Р»РёС€РЅРёРё РЅРµ РЅСѓР»РµРІС‹Рµ Р±Р°Р№С‚С‹ РїРѕСЏРІР»СЏСЋС‚СЃСЏ Рё РІСЃРµ РІ РїРёР·РґСѓ СЃС‹РїРёС‚СЊСЃСЏ
+	uint8_t serialized_pub_key[36] = { 0 };//36 а не 33, потому что там потом, бля на uint32_t переводиться и лишнии не нулевые байты появляются и все в пизду сыпиться
 	serialized_public_key(pub, (uint8_t*)&serialized_pub_key);
 	uint8_t sha256_result[32];
 	sha256((const uint32_t*)serialized_pub_key, 33, (uint32_t*)&sha256_result);
@@ -3179,7 +3179,7 @@ void entropy_to_mnemonic(const uint64_t* gl_entropy, uint8_t* mnemonic_phrase) {
 		mnemonic_index++;
 	}
 
-	mnemonic_phrase[mnemonic_index - 1] = 0;	//РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ, СѓР±РёСЂР°РµС‚ РїРѕСЃР»РµРґРЅРёР№ РїСЂРѕР±РµР»
+	mnemonic_phrase[mnemonic_index - 1] = 0;	//обязательно, убирает последний пробел
 
 }
 
@@ -3900,6 +3900,7 @@ __global__ void gl_bruteforce_mnemonic_for_save(
 
 	//__syncthreads();
 }
+
 
 
 
