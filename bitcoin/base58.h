@@ -34,3 +34,4 @@ std::string EncodeBase58Check(Span<const unsigned char> input);
 int EncodeHashBIP49(const uint8_t* hash160, std::string& addr);
 
 #endif // BITCOIN_BASE58_H
+
