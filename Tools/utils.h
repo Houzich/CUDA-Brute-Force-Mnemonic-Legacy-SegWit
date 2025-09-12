@@ -32,3 +32,4 @@ namespace tools {
 	int decodeAddressBase32(const std::string& addr, uint8_t* bytes);
 	int encodeAddressBIP49(const uint8_t* hash160, std::string& addr);
 }
+
